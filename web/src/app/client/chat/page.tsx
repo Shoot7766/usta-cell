@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadWebApp } from "@/lib/twa";
+import { getBestEffortLatLng } from "@/lib/geo";
+import { FALLBACK_REGION_LAT, FALLBACK_REGION_LNG } from "@/lib/worker-defaults";
 import { apiJson } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
@@ -27,6 +29,8 @@ export default function ClientChatPage() {
   const [requestId, setRequestId] = useState<string | null>(null);
   const [lastAi, setLastAi] = useState<AiRes["ai"] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [locLoading, setLocLoading] = useState(false);
+  const [addressLine, setAddressLine] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,12 +71,23 @@ export default function ClientChatPage() {
 
   const saveLoc = async () => {
     if (!requestId) return;
+    setLocLoading(true);
+    const g = await getBestEffortLatLng();
+    setLocLoading(false);
+    const lat = g?.lat ?? FALLBACK_REGION_LAT;
+    const lng = g?.lng ?? FALLBACK_REGION_LNG;
+    const manual = addressLine.trim();
+    const address = manual
+      ? `${manual.slice(0, 420)}${g ? " · GPS" : " · Zaxira nuqta"}`.slice(0, 500)
+      : g
+        ? "GPS / Telegram joylashuvi"
+        : "Toshkent (zaxira)";
     await apiJson(`/api/requests/${requestId}/location`, {
       method: "PATCH",
       body: JSON.stringify({
-        lat: 41.3111,
-        lng: 69.2797,
-        address: "Toshkent",
+        lat,
+        lng,
+        address,
       }),
     });
   };
@@ -141,17 +156,27 @@ export default function ClientChatPage() {
           </PrimaryButton>
         </div>
         {requestId && (
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <button
-              type="button"
-              className="rounded-xl bg-white/5 border border-white/10 py-2 text-xs"
-              onClick={saveLoc}
-            >
-              Joylashuv (demo)
-            </button>
-            <PrimaryButton className="!py-2 !text-xs" onClick={submitReq}>
-              So‘rovni tasdiqlash
-            </PrimaryButton>
+          <div className="space-y-2 pt-1">
+            <p className="text-[11px] text-white/40">Manzil (ixtiyoriy, usta topish uchun)</p>
+            <input
+              className="w-full rounded-xl bg-black/35 border border-white/10 px-3 py-2 text-sm outline-none focus:border-cyan-400/40"
+              placeholder="Masalan: Yunusobod, Amir Temur ko‘chasi 12-uy, 45-xonadon"
+              value={addressLine}
+              onChange={(e) => setAddressLine(e.target.value)}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={locLoading}
+                className="rounded-xl bg-white/5 border border-white/10 py-2 text-xs disabled:opacity-50"
+                onClick={() => void saveLoc()}
+              >
+                {locLoading ? "Joylashuv…" : "Joylashuvni ulash"}
+              </button>
+              <PrimaryButton className="!py-2 !text-xs" onClick={submitReq}>
+                So‘rovni tasdiqlash
+              </PrimaryButton>
+            </div>
           </div>
         )}
       </GlassCard>

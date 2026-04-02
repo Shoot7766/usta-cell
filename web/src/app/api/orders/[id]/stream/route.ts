@@ -47,7 +47,9 @@ export async function GET(
         await applyNoShowIfNeeded(id);
         const { data: row } = await sb
           .from("orders")
-          .select("status, updated_at, accepted_at, work_started_at, completed_at, arrived_deadline_at")
+          .select(
+            "status, updated_at, accepted_at, work_started_at, completed_at, arrived_deadline_at, price_cents, payment_method, payment_status"
+          )
           .eq("id", id)
           .maybeSingle();
         const { data: events } = await sb

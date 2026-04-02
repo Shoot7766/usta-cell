@@ -133,6 +133,7 @@ export function BootClient() {
           setMsg(me.error || "Profil yuklanmadi");
           return;
         }
+        await apiJson("/api/auth/sync-session", { method: "POST" });
         if (!me.data.user.phone?.trim()) {
           setMeData(me.data);
           setPhase("needsPhone");

@@ -4,6 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadWebApp } from "@/lib/twa";
 import { getSuggestedDisplayNameFromTelegram } from "@/lib/twa-profile";
+import { getBestEffortLatLng } from "@/lib/geo";
+import {
+  buildWorkerProfilePatch,
+  FALLBACK_REGION_LAT,
+  FALLBACK_REGION_LNG,
+} from "@/lib/worker-defaults";
 import { apiJson } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
@@ -28,6 +34,7 @@ export default function OnboardingPage() {
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
   const [roleLoading, setRoleLoading] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,26 +96,27 @@ export default function OnboardingPage() {
   }, []);
 
   const saveBase = async () => {
-    const workerDefaults =
-      me?.user.role === "worker" && !me.user.workerProfileOk
-        ? {
-            services: ["Umumiy ustachilik"],
-            lat: 41.3111,
-            lng: 69.2797,
-            priceMinCents: 50_000,
-            priceMaxCents: 500_000,
-            isAvailable: true as const,
-          }
-        : {};
-    await apiJson("/api/user/profile", {
-      method: "PATCH",
-      body: JSON.stringify({
-        displayName,
-        phone,
-        ...workerDefaults,
-      }),
-    });
-    await refresh();
+    setSaveLoading(true);
+    try {
+      let workerDefaults: Record<string, unknown> = {};
+      if (me?.user.role === "worker" && !me.user.workerProfileOk) {
+        const g = await getBestEffortLatLng();
+        const lat = g?.lat ?? FALLBACK_REGION_LAT;
+        const lng = g?.lng ?? FALLBACK_REGION_LNG;
+        workerDefaults = buildWorkerProfilePatch(lat, lng);
+      }
+      await apiJson("/api/user/profile", {
+        method: "PATCH",
+        body: JSON.stringify({
+          displayName,
+          phone,
+          ...workerDefaults,
+        }),
+      });
+      await refresh();
+    } finally {
+      setSaveLoading(false);
+    }
   };
 
   const switchRole = async (tr: "client" | "worker") => {
@@ -207,10 +215,11 @@ export default function OnboardingPage() {
           />
           <p className="text-[11px] text-white/40">
             Ism Telegramdan avtomatik keladi. Telefonni ilova ochilganda so‘ralgan bo‘lishi
-            mumkin; yo‘q bo‘lsa, bu yerga qo‘lda yozing.
+            mumkin; yo‘q bo‘lsa, bu yerga qo‘lda yozing. Usta sifatida saqlashda joylashuv
+            Telegram / brauzer orqali olinadi (bo‘lmasa Toshkent atrofi zaxirasi).
           </p>
-          <PrimaryButton onClick={() => void saveBase()}>
-            O‘zgarishlarni saqlash
+          <PrimaryButton disabled={saveLoading} onClick={() => void saveBase()}>
+            {saveLoading ? "Joylashuv tekshirilmoqda…" : "O‘zgarishlarni saqlash"}
           </PrimaryButton>
         </GlassCard>
 

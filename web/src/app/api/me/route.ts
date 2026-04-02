@@ -35,6 +35,8 @@ export async function GET() {
           lng: wp.lng as number | null,
           priceMinCents: Number(wp.price_min_cents ?? 0),
           priceMaxCents: Number(wp.price_max_cents ?? 0),
+          bio: (wp.bio as string | null) ?? null,
+          cityName: (wp.city_name as string | null) ?? null,
         }
       : null,
   });
