@@ -10,18 +10,27 @@ export async function apiJson<T>(
     },
     credentials: "include",
   });
+  const text = await r.text();
   let body: unknown = null;
-  try {
-    body = await r.json();
-  } catch {
-    body = null;
+  if (text) {
+    try {
+      body = JSON.parse(text) as unknown;
+    } catch {
+      body = null;
+    }
   }
   const err =
     body && typeof body === "object" && "error" in body
       ? String((body as { error: string }).error)
       : undefined;
   if (!r.ok) {
-    return { ok: false, error: err || r.statusText, status: r.status };
+    const fallback =
+      err ||
+      (text && text.length < 400 && !text.trimStart().startsWith("<")
+        ? text
+        : r.statusText) ||
+      `HTTP ${r.status}`;
+    return { ok: false, error: fallback, status: r.status };
   }
   return { ok: true, data: body as T, status: r.status };
 }
