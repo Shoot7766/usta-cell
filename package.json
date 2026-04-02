@@ -1,0 +1,10 @@
+{
+  "name": "usta-cell",
+  "private": true,
+  "workspaces": ["web"],
+  "scripts": {
+    "build": "npm run build -w usta-call-web",
+    "dev": "npm run dev -w usta-call-web",
+    "lint": "npm run lint -w usta-call-web"
+  }
+}
