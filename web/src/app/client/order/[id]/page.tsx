@@ -10,6 +10,7 @@ import { TwaShell } from "@/components/telegram/TwaShell";
 import { motion } from "framer-motion";
 import { hapticSuccess } from "@/lib/haptic";
 import { PAYMENT_METHOD_UZ, PAYMENT_STATUS_UZ } from "@/lib/payment-labels";
+import { openPrintableContract } from "@/lib/contract-print";
 
 const steps = [
   { key: "new", label: "Yangi" },
@@ -24,7 +25,12 @@ type OrderPayload = {
   payment_method?: string;
   payment_status?: string;
   payout_released?: boolean;
-  requests?: { summary?: string | null; category?: string | null } | null;
+  worker?: { display_name?: string | null } | null;
+  requests?: {
+    summary?: string | null;
+    category?: string | null;
+    address?: string | null;
+  } | null;
 };
 
 export default function ClientOrderPage() {
@@ -45,6 +51,8 @@ export default function ClientOrderPage() {
   const [priceEdit, setPriceEdit] = useState("");
   const [priceSaving, setPriceSaving] = useState(false);
   const [workerConfirmedPrice, setWorkerConfirmedPrice] = useState(false);
+  const [workerName, setWorkerName] = useState("");
+  const [contractAddress, setContractAddress] = useState("");
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -78,6 +86,8 @@ export default function ClientOrderPage() {
         [rq.category, rq.summary].filter(Boolean).join(" — ")
       );
     }
+    setWorkerName(o.worker?.display_name?.trim() || "");
+    setContractAddress(rq?.address?.trim() ? String(rq.address) : "");
   };
 
   const load = async () => {
@@ -237,6 +247,28 @@ export default function ClientOrderPage() {
           )}
         </GlassCard>
       )}
+
+      <GlassCard className="p-4 mb-4 space-y-2">
+        <p className="text-xs text-white/45 uppercase">Shartnoma (PDF)</p>
+        <p className="text-[11px] text-white/45">
+          Yangi varaqda ochiladi — «Chop etish» menyusidan PDF sifatida saqlang.
+        </p>
+        <button
+          type="button"
+          className="w-full rounded-xl bg-white/10 border border-white/15 py-2.5 text-xs text-white/90"
+          onClick={() =>
+            openPrintableContract({
+              orderId: String(id),
+              subjectLine: reqLine || "Xizmat buyurtmasi",
+              priceCents,
+              address: contractAddress || undefined,
+              workerName: workerName || undefined,
+            })
+          }
+        >
+          Shartnomani ochish
+        </button>
+      </GlassCard>
 
       {["new", "accepted"].includes(status) && (
         <GlassCard className="p-4 mb-4 space-y-2">

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { PhoneGateRedirect } from "@/components/auth/PhoneGateRedirect";
+import { AdminTelegramFab } from "@/components/support/AdminTelegramFab";
 
 const tabs = [
   { href: "/client/chat", label: "AI" },
@@ -20,6 +21,7 @@ export default function ClientLayout({
   return (
     <div className="min-h-dvh pb-24">
       <PhoneGateRedirect />
+      <AdminTelegramFab />
       {children}
       <nav className="fixed bottom-0 inset-x-0 z-40 safe-pb">
         <div className="mx-3 mb-3 glass-panel rounded-2xl px-2 py-2 flex justify-around">

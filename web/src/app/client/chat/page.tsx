@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { loadWebApp } from "@/lib/twa";
 import { getBestEffortLatLng } from "@/lib/geo";
@@ -11,6 +12,16 @@ import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
 import { motion, AnimatePresence } from "framer-motion";
 import { hapticSuccess } from "@/lib/haptic";
+
+const MiniMapPicker = dynamic(
+  () => import("@/components/map/MiniMapPicker").then((m) => ({ default: m.MiniMapPicker })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-[200px] rounded-xl bg-white/5 border border-white/10 animate-pulse" />
+    ),
+  }
+);
 
 type ThreadMsg = { role: "user" | "assistant"; content: string };
 
@@ -23,6 +34,8 @@ type DraftRequest = {
   urgency: string | null;
   tags: string[] | null;
   address: string | null;
+  client_lat?: number | null;
+  client_lng?: number | null;
 };
 
 type AiRes = {
@@ -76,6 +89,8 @@ export default function ClientChatPage() {
   const [loading, setLoading] = useState(false);
   const [hydrating, setHydrating] = useState(true);
   const [locLoading, setLocLoading] = useState(false);
+  const [pickLat, setPickLat] = useState(FALLBACK_REGION_LAT);
+  const [pickLng, setPickLng] = useState(FALLBACK_REGION_LNG);
   const [addressLine, setAddressLine] = useState("");
   const [pendingImagePath, setPendingImagePath] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
@@ -97,6 +112,15 @@ export default function ClientChatPage() {
     }
     if (d.address?.trim()) {
       setAddressLine((prev) => prev || d.address!.split(" · ")[0]!.slice(0, 420));
+    }
+    if (
+      typeof d.client_lat === "number" &&
+      typeof d.client_lng === "number" &&
+      Number.isFinite(d.client_lat) &&
+      Number.isFinite(d.client_lng)
+    ) {
+      setPickLat(d.client_lat);
+      setPickLng(d.client_lng);
     }
     try {
       sessionStorage.setItem(DRAFT_STORAGE, d.id);
@@ -251,19 +275,27 @@ export default function ClientChatPage() {
     router.push(`/client/workers?requestId=${requestId}`);
   };
 
-  const saveLoc = async () => {
-    if (!requestId) return;
+  const applyGpsToMap = async () => {
     setLocLoading(true);
     const g = await getBestEffortLatLng();
     setLocLoading(false);
-    const lat = g?.lat ?? FALLBACK_REGION_LAT;
-    const lng = g?.lng ?? FALLBACK_REGION_LNG;
+    if (g) {
+      setPickLat(g.lat);
+      setPickLng(g.lng);
+    } else {
+      window.alert("Joylashuv olinmadi. Xaritadan nuqtani bosing yoki belgini suring.");
+    }
+  };
+
+  const saveLoc = async () => {
+    if (!requestId) return;
+    setLocLoading(true);
+    const lat = pickLat;
+    const lng = pickLng;
     const manual = addressLine.trim();
     const address = manual
-      ? `${manual.slice(0, 420)}${g ? " · GPS" : " · Zaxira nuqta"}`.slice(0, 500)
-      : g
-        ? "GPS / Telegram joylashuvi"
-        : "Toshkent (zaxira)";
+      ? `${manual.slice(0, 420)} · ${lat.toFixed(5)}, ${lng.toFixed(5)}`.slice(0, 500)
+      : `${lat.toFixed(5)}, ${lng.toFixed(5)} — xarita`;
     await apiJson(`/api/requests/${requestId}/location`, {
       method: "PATCH",
       body: JSON.stringify({
@@ -272,6 +304,7 @@ export default function ClientChatPage() {
         address,
       }),
     });
+    setLocLoading(false);
     await loadDraft(requestId);
   };
 
@@ -416,7 +449,20 @@ export default function ClientChatPage() {
         </div>
         {requestId && (
           <div className="space-y-2 pt-1">
-            <p className="text-[11px] text-white/40">Manzil (ixtiyoriy, usta topish uchun)</p>
+            <p className="text-[11px] text-white/40">
+              Manzil va nuqta (OpenStreetMap — bosing yoki belgini suring)
+            </p>
+            <MiniMapPicker
+              lat={pickLat}
+              lng={pickLng}
+              onChange={(la, ln) => {
+                setPickLat(la);
+                setPickLng(ln);
+              }}
+            />
+            <p className="text-[10px] text-white/35 font-mono">
+              {pickLat.toFixed(5)}, {pickLng.toFixed(5)}
+            </p>
             <input
               className="w-full rounded-xl bg-black/35 border border-white/10 px-3 py-2 text-sm outline-none focus:border-cyan-400/40"
               placeholder="Masalan: Yunusobod, Amir Temur ko‘chasi 12-uy, 45-xonadon"
@@ -428,14 +474,22 @@ export default function ClientChatPage() {
                 type="button"
                 disabled={locLoading}
                 className="rounded-xl bg-white/5 border border-white/10 py-2 text-xs disabled:opacity-50"
+                onClick={() => void applyGpsToMap()}
+              >
+                {locLoading ? "…" : "GPS → xarita"}
+              </button>
+              <button
+                type="button"
+                disabled={locLoading}
+                className="rounded-xl bg-white/5 border border-white/10 py-2 text-xs disabled:opacity-50"
                 onClick={() => void saveLoc()}
               >
-                {locLoading ? "Joylashuv…" : "Joylashuvni ulash"}
+                {locLoading ? "Saqlanmoqda…" : "Manzilni saqlash"}
               </button>
-              <PrimaryButton className="!py-2 !text-xs" onClick={submitReq}>
-                So‘rovni tasdiqlash
-              </PrimaryButton>
             </div>
+            <PrimaryButton className="!py-2 !text-xs w-full" onClick={submitReq}>
+              So‘rovni tasdiqlash
+            </PrimaryButton>
           </div>
         )}
       </GlassCard>

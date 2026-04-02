@@ -1,5 +1,9 @@
 import { getServiceSupabase } from "./supabase/admin";
 import {
+  notifyClientWorkerAccepted,
+  parseTelegramChatId,
+} from "./telegram-notify";
+import {
   ARRIVAL_DEADLINE_MINUTES,
   CLIENT_CANCEL_PENALTY_CENTS,
   COMMISSION_BPS,
@@ -216,6 +220,40 @@ export async function setOrderStatus(
   if (next === "completed") patch.completed_at = now;
   await sb.from("orders").update(patch).eq("id", orderId);
   await appendOrderEvent(orderId, `status_${next}`, { by: actor.role });
+  if (next === "accepted" && actor.role === "worker") {
+    void (async () => {
+      try {
+        const [{ data: cu }, { data: wu }, { data: rq }] = await Promise.all([
+          sb
+            .from("users")
+            .select("telegram_id")
+            .eq("id", o.client_id as string)
+            .maybeSingle(),
+          sb
+            .from("users")
+            .select("display_name")
+            .eq("id", o.worker_id as string)
+            .maybeSingle(),
+          sb
+            .from("requests")
+            .select("summary")
+            .eq("id", o.request_id as string)
+            .maybeSingle(),
+        ]);
+        const tid = parseTelegramChatId(cu?.telegram_id);
+        if (tid) {
+          await notifyClientWorkerAccepted({
+            clientTelegramId: tid,
+            orderId,
+            workerName: String((wu?.display_name as string) || "Usta"),
+            summary: String((rq?.summary as string) || ""),
+          });
+        }
+      } catch {
+        /* bildirishnoma ixtiyoriy */
+      }
+    })();
+  }
   return { ok: true };
 }
 

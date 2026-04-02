@@ -14,6 +14,7 @@
     "@twa-dev/sdk": "^8.0.2",
     "framer-motion": "^11.15.0",
     "jose": "^5.9.6",
+    "leaflet": "^1.9.4",
     "next": "14.2.35",
     "openai": "^4.77.0",
     "react": "^18",
@@ -21,6 +22,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
