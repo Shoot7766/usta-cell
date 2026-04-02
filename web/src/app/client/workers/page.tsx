@@ -31,13 +31,18 @@ const badgeUz: Record<string, string> = {
 function WorkerSwipeCard({
   w,
   onPick,
+  busy,
+  anyOrdering,
 }: {
   w: W;
   onPick: () => void;
+  busy: boolean;
+  anyOrdering: boolean;
 }) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-120, 120], [-6, 6]);
   const onDragEnd = (_: unknown, info: PanInfo) => {
+    if (anyOrdering) return;
     if (info.offset.x > 80) {
       hapticLight();
       onPick();
@@ -46,13 +51,16 @@ function WorkerSwipeCard({
   return (
     <motion.div
       style={{ x, rotate }}
-      drag="x"
+      drag={anyOrdering ? false : "x"}
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.2}
       onDragEnd={onDragEnd}
       className="touch-pan-y"
     >
-      <GlassCard className="p-4 mb-3" glow>
+      <GlassCard
+        className={`p-4 mb-3 ${anyOrdering ? "opacity-60 pointer-events-none" : ""}`}
+        glow
+      >
         <div className="flex justify-between items-start gap-2">
           <div>
             <p className="font-semibold text-white">
@@ -81,8 +89,8 @@ function WorkerSwipeCard({
           Narx: {w.price_min_cents.toLocaleString()} — {w.price_max_cents.toLocaleString()}{" "}
           so‘m
         </p>
-        <PrimaryButton className="mt-3 !py-2.5" onClick={onPick}>
-          Tanlash
+        <PrimaryButton className="mt-3 !py-2.5" disabled={anyOrdering} onClick={onPick}>
+          {busy ? "Buyurtma yaratilmoqda…" : "Tanlash"}
         </PrimaryButton>
         <p className="text-[10px] text-white/35 mt-2 text-center">
           O‘ngga suring — tez tanlash
@@ -97,9 +105,7 @@ function WorkersPageContent() {
   const sp = useSearchParams();
   const requestId = sp.get("requestId") || "";
   const [workers, setWorkers] = useState<W[]>([]);
-  const [pick, setPick] = useState<W | null>(null);
-  const [price, setPrice] = useState("150000");
-  const [eta, setEta] = useState("45");
+  const [orderingId, setOrderingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,7 +124,7 @@ function WorkersPageContent() {
 
   useEffect(() => {
     if (!requestId) return;
-    (async () => {
+    void (async () => {
       const r = await apiJson<{ workers: W[] }>(
         `/api/match?requestId=${encodeURIComponent(requestId)}`
       );
@@ -131,20 +137,23 @@ function WorkersPageContent() {
     [workers]
   );
 
-  const confirm = async () => {
-    if (!pick || !requestId) return;
+  const pickWorker = async (w: W) => {
+    if (!requestId || orderingId) return;
+    setOrderingId(w.user_id);
     const r = await apiJson<{ orderId: string }>("/api/orders", {
       method: "POST",
       body: JSON.stringify({
         requestId,
-        workerId: pick.user_id,
-        priceCents: parseInt(price, 10) || 0,
-        etaMinutes: parseInt(eta, 10) || 30,
+        workerId: w.user_id,
       }),
     });
+    setOrderingId(null);
     if (r.ok && r.data?.orderId) {
       router.push(`/client/order/${r.data.orderId}`);
+      return;
     }
+    const WebApp = await loadWebApp();
+    WebApp.showAlert(r.error || "Buyurtma yaratilmadi");
   };
 
   return (
@@ -152,39 +161,20 @@ function WorkersPageContent() {
       <TwaShell />
       <h1 className="text-lg font-bold gradient-text mb-1">Ustalar</h1>
       <p className="text-xs text-white/50 mb-3">
-        Masofa, reyting, javob tezligi, mavjudlik va narx mosligi bo‘yicha saralangan.
+        Ustani tanlang — narx va vaqt avtomatik hisoblanadi (so‘rov va usta
+        diapazoni bo‘yicha).
       </p>
-      {!pick &&
-        sorted.map((w) => (
-          <WorkerSwipeCard key={w.user_id} w={w} onPick={() => setPick(w)} />
-        ))}
-      {pick && (
-        <GlassCard className="p-4 space-y-3" glow>
-          <p className="font-semibold">{pick.display_name}</p>
-          <p className="text-xs text-white/55">
-            Reyting: {pick.rating_avg} · ETA taxminiy: {eta} daqiqa
-          </p>
-          <input
-            className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            placeholder="Narx (so‘m)"
-          />
-          <input
-            className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-            value={eta}
-            onChange={(e) => setEta(e.target.value)}
-            placeholder="ETA (daq)"
-          />
-          <PrimaryButton onClick={confirm}>Buyurtmani tasdiqlash</PrimaryButton>
-          <button
-            type="button"
-            className="w-full text-xs text-white/45"
-            onClick={() => setPick(null)}
-          >
-            Orqaga
-          </button>
-        </GlassCard>
+      {sorted.map((w) => (
+        <WorkerSwipeCard
+          key={w.user_id}
+          w={w}
+          busy={orderingId === w.user_id}
+          anyOrdering={orderingId !== null}
+          onPick={() => void pickWorker(w)}
+        />
+      ))}
+      {sorted.length === 0 && requestId && (
+        <p className="text-sm text-white/45">Hozircha mos usta topilmadi.</p>
       )}
     </div>
   );

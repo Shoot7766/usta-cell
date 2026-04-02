@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadWebApp } from "@/lib/twa";
+import {
+  getSuggestedDisplayNameFromTelegram,
+  requestTelegramContactPhone,
+} from "@/lib/twa-profile";
 import { apiJson } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
@@ -16,6 +20,8 @@ type Me = {
     workerProfileOk: boolean;
     onboardingStep: string;
     pendingRole: string | null;
+    displayName?: string | null;
+    phone?: string | null;
   };
 };
 
@@ -29,8 +35,8 @@ export default function OnboardingPage() {
   const [lng, setLng] = useState("");
   const [pMin, setPMin] = useState("50000");
   const [pMax, setPMax] = useState("500000");
-  const [confirmToken, setConfirmToken] = useState<string | null>(null);
-  const [targetRole, setTargetRole] = useState<"client" | "worker" | null>(null);
+  const [phoneLoading, setPhoneLoading] = useState(false);
+  const [roleLoading, setRoleLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,6 +53,16 @@ export default function OnboardingPage() {
     };
   }, [router]);
 
+  const refresh = async () => {
+    const r = await apiJson<Me>("/api/me");
+    if (r.ok && r.data) {
+      setMe(r.data);
+      const u = r.data.user;
+      if (u.displayName) setDisplayName(u.displayName);
+      if (u.phone) setPhone(u.phone);
+    }
+  };
+
   useEffect(() => {
     void (async () => {
       const WebApp = await loadWebApp();
@@ -58,13 +74,53 @@ export default function OnboardingPage() {
         });
       }
       const r = await apiJson<Me>("/api/me");
-      if (r.ok && r.data) setMe(r.data);
+      const suggested = await getSuggestedDisplayNameFromTelegram();
+      if (r.ok && r.data) {
+        setMe(r.data);
+        const u = r.data.user;
+        if (u.displayName?.trim()) {
+          setDisplayName(u.displayName.trim());
+        } else if (suggested) {
+          setDisplayName(suggested);
+        }
+        if (u.phone) setPhone(u.phone);
+        if (!u.displayName?.trim() && suggested) {
+          await apiJson("/api/user/profile", {
+            method: "PATCH",
+            body: JSON.stringify({ displayName: suggested }),
+          });
+          await refresh();
+        }
+      } else if (suggested) {
+        setDisplayName(suggested);
+      }
     })();
   }, []);
 
-  const refresh = async () => {
-    const r = await apiJson<Me>("/api/me");
-    if (r.ok && r.data) setMe(r.data);
+  const fillPhoneFromTelegram = async () => {
+    setPhoneLoading(true);
+    try {
+      const p = await requestTelegramContactPhone();
+      if (p) {
+        setPhone(p);
+        const name = displayName.trim();
+        await apiJson("/api/user/profile", {
+          method: "PATCH",
+          body: JSON.stringify({
+            phone: p,
+            ...(name.length >= 2 ? { displayName: name } : {}),
+          }),
+        });
+        await refresh();
+      } else {
+        const WebApp = await loadWebApp();
+        WebApp.showAlert(
+          "Telefon kelmay qoldi. Telegram raqamni foydalanuvchi «Ulashish» tugmasi orqali ruxsat berganda beradi; avtomatik emas."
+        );
+      }
+    } finally {
+      setPhoneLoading(false);
+    }
   };
 
   const saveBase = async () => {
@@ -95,26 +151,23 @@ export default function OnboardingPage() {
     await refresh();
   };
 
-  const requestSwitch = async (tr: "client" | "worker") => {
-    const r = await apiJson<{ confirmToken?: string }>("/api/user/role-switch", {
-      method: "POST",
-      body: JSON.stringify({ targetRole: tr }),
-    });
-    if (r.ok && r.data && "confirmToken" in r.data) {
-      setConfirmToken(String((r.data as { confirmToken: string }).confirmToken));
-      setTargetRole(tr);
+  const switchRole = async (tr: "client" | "worker") => {
+    if (roleLoading || me?.user.role === tr) return;
+    setRoleLoading(true);
+    const r = await apiJson<{ ok?: boolean; role?: string }>(
+      "/api/user/role-switch",
+      {
+        method: "POST",
+        body: JSON.stringify({ targetRole: tr }),
+      }
+    );
+    setRoleLoading(false);
+    if (r.ok) {
+      await refresh();
+      return;
     }
-  };
-
-  const confirmSwitch = async () => {
-    if (!confirmToken) return;
-    await apiJson("/api/user/role-switch/confirm", {
-      method: "POST",
-      body: JSON.stringify({ confirmToken }),
-    });
-    setConfirmToken(null);
-    setTargetRole(null);
-    await refresh();
+    const WebApp = await loadWebApp();
+    WebApp.showAlert(r.error || "Rol almashmadi");
   };
 
   if (!me) {
@@ -145,27 +198,21 @@ export default function OnboardingPage() {
           <div className="flex gap-2">
             <button
               type="button"
-              className="flex-1 rounded-xl bg-white/5 border border-white/10 py-2 text-sm"
-              onClick={() => requestSwitch("client")}
+              disabled={roleLoading || role === "client"}
+              className="flex-1 rounded-xl bg-white/5 border border-white/10 py-2 text-sm disabled:opacity-40"
+              onClick={() => void switchRole("client")}
             >
               Mijozga o‘tish
             </button>
             <button
               type="button"
-              className="flex-1 rounded-xl bg-white/5 border border-white/10 py-2 text-sm"
-              onClick={() => requestSwitch("worker")}
+              disabled={roleLoading || role === "worker"}
+              className="flex-1 rounded-xl bg-white/5 border border-white/10 py-2 text-sm disabled:opacity-40"
+              onClick={() => void switchRole("worker")}
             >
               Ustaga o‘tish
             </button>
           </div>
-          {confirmToken && (
-            <div className="rounded-xl bg-amber-500/10 border border-amber-400/20 p-3 space-y-2">
-              <p className="text-xs text-amber-100/90">
-                <strong>Xavfsizlik</strong>: {targetRole} rolini tasdiqlaysizmi?
-              </p>
-              <PrimaryButton onClick={confirmSwitch}>Ha, tasdiqlayman</PrimaryButton>
-            </div>
-          )}
         </GlassCard>
 
         <GlassCard className="p-4 mb-4 space-y-3">
@@ -182,7 +229,21 @@ export default function OnboardingPage() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
-          <PrimaryButton onClick={saveBase}>Saqlash</PrimaryButton>
+          <p className="text-[11px] text-white/40">
+            Ism Telegramdan olinadi va serverga yoziladi. Telefon uchun quyidagi tugma yoki
+            qo‘lda kiritish.
+          </p>
+          <button
+            type="button"
+            className="w-full rounded-xl bg-white/5 border border-white/10 py-2 text-sm disabled:opacity-50"
+            disabled={phoneLoading}
+            onClick={() => void fillPhoneFromTelegram()}
+          >
+            {phoneLoading ? "Kutilmoqda…" : "Telegramdan telefonni ulash"}
+          </button>
+          <PrimaryButton onClick={() => void saveBase()}>
+            O‘zgarishlarni saqlash
+          </PrimaryButton>
         </GlassCard>
 
         {needWorker && (
@@ -222,7 +283,9 @@ export default function OnboardingPage() {
                 onChange={(e) => setPMax(e.target.value)}
               />
             </div>
-            <PrimaryButton onClick={saveWorker}>Usta profilini saqlash</PrimaryButton>
+            <PrimaryButton onClick={() => void saveWorker()}>
+              Usta profilini saqlash
+            </PrimaryButton>
           </GlassCard>
         )}
 
