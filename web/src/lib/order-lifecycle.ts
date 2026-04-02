@@ -6,8 +6,8 @@ import {
 import {
   ARRIVAL_DEADLINE_MINUTES,
   CLIENT_CANCEL_PENALTY_CENTS,
-  COMMISSION_BPS,
-  LEAD_UNLOCK_CENTS,
+  FREE_ORDER_ACCEPTS,
+  ORDER_ACCEPT_FEE_CENTS,
   NO_SHOW_PENALTY_RATING,
   WORKER_CANCEL_RATING_DELTA,
 } from "./constants";
@@ -26,8 +26,69 @@ export async function appendOrderEvent(
   });
 }
 
-export function computeCommission(priceCents: number): number {
-  return Math.floor((priceCents * COMMISSION_BPS) / 10000);
+/**
+ * Usta «yangi» buyurtmani qabul qilganda: 3 marta bepul, keyin har birida ORDER_ACCEPT_FEE_CENTS.
+ */
+export async function chargeWorkerOrderAccept(
+  workerId: string,
+  orderId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const sb = getServiceSupabase();
+  const { data: wp } = await sb
+    .from("worker_profiles")
+    .select("leads_balance_cents, free_order_accepts_remaining")
+    .eq("user_id", workerId)
+    .maybeSingle();
+  if (!wp) {
+    return { ok: false, error: "Usta profili topilmadi" };
+  }
+  const freeRem = Math.max(
+    0,
+    Number(
+      wp.free_order_accepts_remaining != null
+        ? wp.free_order_accepts_remaining
+        : FREE_ORDER_ACCEPTS
+    )
+  );
+  const now = new Date().toISOString();
+  if (freeRem > 0) {
+    await sb
+      .from("worker_profiles")
+      .update({
+        free_order_accepts_remaining: freeRem - 1,
+        updated_at: now,
+      })
+      .eq("user_id", workerId);
+    await appendOrderEvent(orderId, "order_accept_free_slot", {
+      free_remaining_after: freeRem - 1,
+    });
+    return { ok: true };
+  }
+  const bal = (wp.leads_balance_cents as number) ?? 0;
+  if (bal < ORDER_ACCEPT_FEE_CENTS) {
+    return {
+      ok: false,
+      error: `Bepul qabul limiti tugagan. Keyingi qabul uchun hisobda kamida ${ORDER_ACCEPT_FEE_CENTS.toLocaleString("uz-UZ")} so'm kerak.`,
+    };
+  }
+  await sb
+    .from("worker_profiles")
+    .update({
+      leads_balance_cents: bal - ORDER_ACCEPT_FEE_CENTS,
+      updated_at: now,
+    })
+    .eq("user_id", workerId);
+  await sb.from("transactions").insert({
+    user_id: workerId,
+    order_id: orderId,
+    type: "order_accept_fee",
+    amount_cents: -ORDER_ACCEPT_FEE_CENTS,
+    meta: { note: "Buyurtma qabuli" },
+  });
+  await appendOrderEvent(orderId, "order_accept_fee_paid", {
+    cents: ORDER_ACCEPT_FEE_CENTS,
+  });
+  return { ok: true };
 }
 
 export async function applyNoShowIfNeeded(orderId: string): Promise<boolean> {
@@ -207,6 +268,11 @@ export async function setOrderStatus(
   } else if (actor.role !== "admin") {
     return { ok: false, error: "Ruxsat yo'q" };
   }
+  if (next === "accepted" && cur === "new" && actor.role === "worker") {
+    const paid = await chargeWorkerOrderAccept(actor.userId, orderId);
+    if (!paid.ok) return { ok: false, error: paid.error };
+  }
+
   const patch: Record<string, unknown> = { status: next, updated_at: new Date().toISOString() };
   const now = new Date().toISOString();
   if (next === "accepted") {
@@ -214,7 +280,7 @@ export async function setOrderStatus(
     patch.arrived_deadline_at = new Date(
       Date.now() + ARRIVAL_DEADLINE_MINUTES * 60 * 1000
     ).toISOString();
-    patch.commission_cents = computeCommission((o.price_cents as number) || 0);
+    patch.commission_cents = 0;
   }
   if (next === "in_progress") patch.work_started_at = now;
   if (next === "completed") patch.completed_at = now;
@@ -256,5 +322,3 @@ export async function setOrderStatus(
   }
   return { ok: true };
 }
-
-export { LEAD_UNLOCK_CENTS };

@@ -9,7 +9,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
 
-type Inbox = {
+type WorkerInboxData = {
   newOrders: {
     id: string;
     status: string;
@@ -20,7 +20,7 @@ type Inbox = {
 };
 
 export default function WorkerInboxPage() {
-  const [data, setData] = useState<Inbox | null>(null);
+  const [data, setData] = useState<WorkerInboxData | null>(null);
 
   useEffect(() => {
     void loadWebApp().then((WebApp) => {
@@ -29,7 +29,7 @@ export default function WorkerInboxPage() {
   }, []);
 
   const refresh = async () => {
-    const r = await apiJson<Inbox>("/api/worker/inbox");
+    const r = await apiJson<WorkerInboxData>("/api/worker/inbox");
     if (r.ok && r.data) setData(r.data);
   };
 
@@ -70,9 +70,9 @@ export default function WorkerInboxPage() {
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28">
       <TwaShell />
-      <h1 className="text-lg font-bold gradient-text mb-1">Inbox</h1>
+      <h1 className="text-lg font-bold gradient-text mb-1">Xabarlar</h1>
       <p className="text-xs text-white/50 mb-3">
-        Realtime: Supabase + fallback poll. Yangi buyurtmalar va ochiq so‘rovlar.
+        Yangi buyurtmalar va bozordagi so‘rovlar — real vaqt va qayta tekshiruv.
       </p>
       <p className="text-xs text-white/40 mb-2 uppercase tracking-wider">
         Sizga kelgan buyurtmalar
@@ -93,7 +93,7 @@ export default function WorkerInboxPage() {
         )}
       </div>
       <p className="text-xs text-white/40 mb-2 uppercase tracking-wider">
-        Bozor so‘rovlari (lead)
+        Bozor so‘rovlari
       </p>
       <div className="space-y-2">
         {data?.openRequests?.map((req) => (
@@ -104,7 +104,7 @@ export default function WorkerInboxPage() {
               className="!py-2 !text-xs"
               onClick={() => unlock(req.id)}
             >
-              Kontaktni ochish (lead)
+              Kontaktni ochish
             </PrimaryButton>
           </GlassCard>
         ))}

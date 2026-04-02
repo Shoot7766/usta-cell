@@ -1,5 +1,10 @@
-export const COMMISSION_BPS = Number(process.env.COMMISSION_BPS ?? 1200);
-export const LEAD_UNLOCK_CENTS = Number(process.env.LEAD_UNLOCK_CENTS ?? 5000);
+/** Usta buyurtmani qabul qilganda (4-chi va keyingilar) — so‘m. */
+export const ORDER_ACCEPT_FEE_CENTS = Number(
+  process.env.ORDER_ACCEPT_FEE_CENTS ?? 10_000
+);
+
+/** Har bir usta uchun boshlang‘ich bepul qabul limiti. */
+export const FREE_ORDER_ACCEPTS = Number(process.env.FREE_ORDER_ACCEPTS ?? 3);
 export const CLIENT_CANCEL_PENALTY_CENTS = Number(
   process.env.CLIENT_CANCEL_PENALTY_CENTS ?? 15000
 );

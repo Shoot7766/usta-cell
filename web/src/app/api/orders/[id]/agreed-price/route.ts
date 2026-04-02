@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession, requireRole } from "@/lib/api-auth";
 import { getServiceSupabase } from "@/lib/supabase/admin";
-import { appendOrderEvent, computeCommission } from "@/lib/order-lifecycle";
+import { appendOrderEvent } from "@/lib/order-lifecycle";
 
 const Params = z.object({ id: z.string().uuid() });
 
@@ -41,19 +41,18 @@ export async function PATCH(
       { status: 400 }
     );
   }
-  const commission = computeCommission(body.priceCents);
   await sb
     .from("orders")
     .update({
       price_cents: body.priceCents,
-      commission_cents: commission,
+      commission_cents: 0,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
   await appendOrderEvent(id, "client_set_agreed_price", {
     price_cents: body.priceCents,
   });
-  return NextResponse.json({ ok: true, price_cents: body.priceCents, commission_cents: commission });
+  return NextResponse.json({ ok: true, price_cents: body.priceCents });
 }
 
 const PostBody = z.object({ confirm: z.literal(true) });

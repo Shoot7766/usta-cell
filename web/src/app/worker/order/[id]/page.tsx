@@ -101,10 +101,14 @@ export default function WorkerOrderPage() {
   }, [id]);
 
   const setSt = async (s: "accepted" | "in_progress" | "completed") => {
-    await apiJson(`/api/orders/${id}/status`, {
+    const r = await apiJson(`/api/orders/${id}/status`, {
       method: "POST",
       body: JSON.stringify({ status: s }),
     });
+    if (!r.ok && r.error) {
+      const WebApp = await loadWebApp();
+      WebApp.showAlert(r.error);
+    }
     load();
   };
 
@@ -200,7 +204,7 @@ export default function WorkerOrderPage() {
         )}
       </GlassCard>
       <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={unlock}>
-        Lead: mijoz kontakti
+        Mijoz kontakti
       </PrimaryButton>
       {status === "new" && (
         <div className="grid grid-cols-2 gap-2">

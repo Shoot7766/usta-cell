@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
         services: [],
         price_min_cents: 0,
         price_max_cents: 0,
-        leads_balance_cents: 200000,
+        leads_balance_cents: 0,
+        free_order_accepts_remaining: 3,
       });
     }
   }

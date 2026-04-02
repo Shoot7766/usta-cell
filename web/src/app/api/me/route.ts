@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSession, loadUserProfile, loadWorkerProfile, workerProfileComplete } from "@/lib/api-auth";
 import { normalizePortfolioFromDb } from "@/lib/portfolio";
+import { FREE_ORDER_ACCEPTS } from "@/lib/constants";
 
 export async function GET() {
   const ctx = await requireSession();
@@ -18,6 +19,8 @@ export async function GET() {
       profileCompleted: u.profile_completed,
       pendingRole: u.pending_role,
       displayName: u.display_name,
+      firstName: u.first_name,
+      lastName: u.last_name,
       phone: u.phone,
       walletBalanceCents: u.wallet_balance_cents ?? 0,
       onboardingStep: u.onboarding_step,
@@ -31,6 +34,11 @@ export async function GET() {
   const portfolioDb = normalizePortfolioFromDb(wp?.portfolio);
   return NextResponse.json({
     ...base,
+    workerEarningsCents: wp ? Number(wp.earnings_balance_cents ?? 0) : 0,
+    workerLeadsBalanceCents: wp ? Number(wp.leads_balance_cents ?? 0) : 0,
+    workerFreeAcceptsRemaining: wp
+      ? Math.max(0, Number(wp.free_order_accepts_remaining ?? FREE_ORDER_ACCEPTS))
+      : 0,
     workerProfile: wp
       ? {
           services: (wp.services as string[]) ?? [],

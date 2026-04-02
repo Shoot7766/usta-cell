@@ -32,15 +32,17 @@ export type LoadedUserProfile = {
   profile_completed: boolean;
   pending_role: Role | null;
   display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   phone: string | null;
   onboarding_step: string;
   wallet_balance_cents: number;
 };
 
 const USERS_SELECT_WITH_WALLET =
-  "id, role, profile_completed, pending_role, display_name, phone, onboarding_step, wallet_balance_cents";
+  "id, role, profile_completed, pending_role, display_name, first_name, last_name, phone, onboarding_step, wallet_balance_cents";
 const USERS_SELECT_BASE =
-  "id, role, profile_completed, pending_role, display_name, phone, onboarding_step";
+  "id, role, profile_completed, pending_role, display_name, first_name, last_name, phone, onboarding_step";
 
 /**
  * wallet_balance_cents migratsiyasi hali qo‘llanmagan DB uchun: birinchi so‘rov xato bersa,
@@ -63,8 +65,11 @@ export async function loadUserProfile(userId: string): Promise<LoadedUserProfile
       .eq("id", userId)
       .maybeSingle();
     if (second.error || !second.data) return null;
+    const row = second.data as Omit<LoadedUserProfile, "wallet_balance_cents">;
     return {
-      ...(second.data as Omit<LoadedUserProfile, "wallet_balance_cents">),
+      ...row,
+      first_name: row.first_name ?? null,
+      last_name: row.last_name ?? null,
       wallet_balance_cents: 0,
     };
   }

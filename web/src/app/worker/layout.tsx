@@ -7,9 +7,10 @@ import { PhoneGateRedirect } from "@/components/auth/PhoneGateRedirect";
 import { AdminTelegramFab } from "@/components/support/AdminTelegramFab";
 
 const tabs = [
-  { href: "/worker", label: "Inbox" },
-  { href: "/worker/orders", label: "Buyurtmalar" },
-  { href: "/worker/profile", label: "Profil" },
+  { href: "/worker", label: "Xabarlar", match: "exact" as const },
+  { href: "/worker/portfolio", label: "Portfolio", match: "prefix" as const },
+  { href: "/worker/orders", label: "Buyurtmalar", match: "prefix" as const },
+  { href: "/worker/profile", label: "Profil", match: "prefix" as const },
 ];
 
 export default function WorkerLayout({
@@ -27,9 +28,7 @@ export default function WorkerLayout({
         <div className="mx-3 mb-3 glass-panel rounded-2xl px-2 py-2 flex justify-around">
           {tabs.map((t) => {
             const active =
-              t.href === "/worker"
-                ? pathname === "/worker"
-                : pathname.startsWith(t.href);
+              t.match === "exact" ? pathname === t.href : pathname.startsWith(t.href);
             return (
               <Link key={t.href} href={t.href} className="relative flex-1 text-center py-2">
                 {active && (

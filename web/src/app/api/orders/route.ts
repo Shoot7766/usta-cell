@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession, requireRole } from "@/lib/api-auth";
 import { getServiceSupabase } from "@/lib/supabase/admin";
-import { computeCommission, appendOrderEvent } from "@/lib/order-lifecycle";
+import { appendOrderEvent } from "@/lib/order-lifecycle";
 import { notifyWorkerNewOrder } from "@/lib/telegram-notify";
 import { requestEligibleForMatchFlow } from "@/lib/service-match";
 
@@ -89,7 +89,6 @@ export async function POST(req: NextRequest) {
   const etaMinutes =
     body.etaMinutes ?? defaultEtaMinutes(r.urgency as string | null | undefined);
 
-  const commission = computeCommission(priceCents);
   const { data: ord, error } = await sb
     .from("orders")
     .insert({
@@ -99,7 +98,7 @@ export async function POST(req: NextRequest) {
       status: "new",
       price_cents: priceCents,
       eta_minutes: etaMinutes,
-      commission_cents: commission,
+      commission_cents: 0,
     })
     .select("id, contract_number")
     .single();
@@ -139,7 +138,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     orderId: ord.id,
     contractNumber: ord.contract_number as string,
-    commission_cents: commission,
     price_cents: priceCents,
     eta_minutes: etaMinutes,
   });

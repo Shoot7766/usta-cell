@@ -21,9 +21,7 @@ export async function POST(
   const sb = getServiceSupabase();
   const { data: o } = await sb
     .from("orders")
-    .select(
-      "id, client_id, worker_id, status, price_cents, commission_cents, payout_released"
-    )
+    .select("id, client_id, worker_id, status, price_cents, payout_released")
     .eq("id", id)
     .maybeSingle();
   if (!o || o.client_id !== ctx.userId) {
@@ -39,8 +37,7 @@ export async function POST(
     return NextResponse.json({ error: "To'lov allaqachon o'tkazilgan" }, { status: 400 });
   }
   const price = (o.price_cents as number) || 0;
-  const commission = (o.commission_cents as number) || 0;
-  const gross = Math.max(0, price - commission);
+  const gross = Math.max(0, price);
   if (price <= 0) {
     return NextResponse.json({ error: "Buyurtma narxi noto'g'ri" }, { status: 400 });
   }
@@ -95,15 +92,6 @@ export async function POST(
     amount_cents: gross,
     meta: { note: "Mijoz tasdig'i bilan" },
   });
-  if (commission > 0) {
-    await sb.from("transactions").insert({
-      user_id: o.worker_id as string,
-      order_id: id,
-      type: "commission",
-      amount_cents: -commission,
-      meta: {},
-    });
-  }
   await appendOrderEvent(id, "payout_released", { client: ctx.userId });
   return NextResponse.json({ ok: true, grossToWorkerCents: gross });
 }
