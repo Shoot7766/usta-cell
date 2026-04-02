@@ -37,6 +37,7 @@ export async function sendTelegramText(chatId: number, text: string): Promise<bo
 export async function notifyWorkerNewOrder(opts: {
   workerTelegramId: number;
   orderId: string;
+  contractNumber?: string;
   summary: string;
   appUrl?: string;
 }): Promise<void> {
@@ -44,6 +45,9 @@ export async function notifyWorkerNewOrder(opts: {
   const link = base ? `${base}/worker/order/${opts.orderId}` : "";
   const lines = [
     "🔔 Sizga buyurtma tushdi.",
+    opts.contractNumber?.trim()
+      ? `Shartnoma: ${opts.contractNumber.trim().slice(0, 40)}`
+      : "",
     opts.summary.trim() ? opts.summary.trim().slice(0, 280) : "",
     link ? `Ilova: ${link}` : "Mini ilovadan «Buyurtmalar» ni oching.",
   ].filter(Boolean);

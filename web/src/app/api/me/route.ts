@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSession, loadUserProfile, loadWorkerProfile, workerProfileComplete } from "@/lib/api-auth";
+import { normalizePortfolioFromDb } from "@/lib/portfolio";
 
 export async function GET() {
   const ctx = await requireSession();
@@ -27,6 +28,7 @@ export async function GET() {
     return NextResponse.json(base);
   }
   const wp = worker as Record<string, unknown> | null;
+  const portfolioDb = normalizePortfolioFromDb(wp?.portfolio);
   return NextResponse.json({
     ...base,
     workerProfile: wp
@@ -38,6 +40,10 @@ export async function GET() {
           priceMaxCents: Number(wp.price_max_cents ?? 0),
           bio: (wp.bio as string | null) ?? null,
           cityName: (wp.city_name as string | null) ?? null,
+          portfolio: portfolioDb.map((p) => ({
+            imageUrl: p.image_url,
+            caption: p.caption ?? undefined,
+          })),
         }
       : null,
   });

@@ -14,12 +14,14 @@ type W = {
   user_id: string;
   display_name: string | null;
   rating_avg: number;
+  rating_count?: number;
   distance_km: number | null;
   score: number;
   badges: string[];
   price_min_cents: number;
   price_max_cents: number;
   eta_hint?: number;
+  portfolio_preview?: { image_url: string; caption?: string | null }[];
 };
 
 const badgeUz: Record<string, string> = {
@@ -67,7 +69,7 @@ function WorkerSwipeCard({
               {w.display_name || "Usta"}
             </p>
             <p className="text-xs text-white/45">
-              ⭐ {w.rating_avg.toFixed(2)} ·{" "}
+              ⭐ {w.rating_avg.toFixed(2)} · {w.rating_count ?? 0} sharh ·{" "}
               {w.distance_km != null ? `${w.distance_km.toFixed(1)} km` : "masofa ?"}
             </p>
           </div>
@@ -89,6 +91,20 @@ function WorkerSwipeCard({
           Narx: {w.price_min_cents.toLocaleString()} — {w.price_max_cents.toLocaleString()}{" "}
           so‘m
         </p>
+        {w.portfolio_preview && w.portfolio_preview.length > 0 && (
+          <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {w.portfolio_preview.map((p, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={`${p.image_url}-${i}`}
+                src={p.image_url}
+                alt={p.caption || ""}
+                className="h-14 w-14 rounded-lg object-cover border border-white/10 shrink-0 bg-black/30"
+                referrerPolicy="no-referrer"
+              />
+            ))}
+          </div>
+        )}
         <PrimaryButton className="mt-3 !py-2.5" disabled={anyOrdering} onClick={onPick}>
           {busy ? "Buyurtma yaratilmoqda…" : "Tanlash"}
         </PrimaryButton>

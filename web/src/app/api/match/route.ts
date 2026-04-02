@@ -8,6 +8,7 @@ import {
   workerMatchesServiceBlob,
   requestEligibleForMatchFlow,
 } from "@/lib/service-match";
+import { normalizePortfolioFromDb, portfolioPreview } from "@/lib/portfolio";
 
 const Q = z.object({ requestId: z.string().uuid() });
 
@@ -70,6 +71,7 @@ export async function GET(req: NextRequest) {
       rating_avg: Number(w.rating_avg),
       rating_count: w.rating_count as number,
       subscription_tier: w.subscription_tier as "free" | "pro",
+      portfolio_preview: portfolioPreview(normalizePortfolioFromDb(w.portfolio)),
     })) ?? [];
 
   const blob = buildRequestServiceBlob({

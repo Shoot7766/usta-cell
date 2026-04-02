@@ -47,6 +47,8 @@ export type WorkerMatchRow = {
   rating_count: number;
   subscription_tier: "free" | "pro";
   distance_km: number | null;
+  /** Mijozga ko‘rinadigan oxirgi ishlar (rasmlar havolasi). */
+  portfolio_preview: { image_url: string; caption?: string | null }[];
 };
 
 export type MatchBadge = "top_worker" | "fast_response" | "nearby";

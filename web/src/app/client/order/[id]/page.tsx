@@ -35,6 +35,7 @@ const steps = [
 type OrderPayload = {
   status: string;
   request_id?: string;
+  contract_number?: string;
   price_cents?: number;
   payment_method?: string;
   payment_status?: string;
@@ -74,6 +75,7 @@ export default function ClientOrderPage() {
   const [pickLng, setPickLng] = useState(FALLBACK_REGION_LNG);
   const [addrLineOrder, setAddrLineOrder] = useState("");
   const [locBusy, setLocBusy] = useState(false);
+  const [contractNumber, setContractNumber] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -111,6 +113,9 @@ export default function ClientOrderPage() {
     setContractAddress(rq?.address?.trim() ? String(rq.address) : "");
     if (typeof o.request_id === "string" && o.request_id) {
       setOrderRequestId(o.request_id);
+    }
+    if (typeof o.contract_number === "string" && o.contract_number.trim()) {
+      setContractNumber(o.contract_number.trim());
     }
     if (
       rq &&
@@ -277,7 +282,12 @@ export default function ClientOrderPage() {
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28">
       <TwaShell />
-      <h1 className="text-lg font-bold gradient-text mb-3">Kuzatuv</h1>
+      <h1 className="text-lg font-bold gradient-text mb-1">Kuzatuv</h1>
+      {contractNumber && (
+        <p className="text-[11px] text-cyan-200/90 font-mono mb-3 tracking-wide">
+          Shartnoma: <span className="text-white">{contractNumber}</span>
+        </p>
+      )}
       <GlassCard className="p-4 mb-4">
         <div className="flex justify-between gap-1">
           {steps.map((s, i) => (
@@ -327,6 +337,7 @@ export default function ClientOrderPage() {
           onClick={() =>
             openPrintableContract({
               orderId: String(id),
+              contractNumber: contractNumber ?? undefined,
               subjectLine: reqLine || "Xizmat buyurtmasi",
               priceCents,
               address: contractAddress || undefined,

@@ -22,6 +22,7 @@ export default function WorkerOrderPage() {
   const [reqLine, setReqLine] = useState("");
   const [workerPriceOk, setWorkerPriceOk] = useState(false);
   const [confirmPriceBusy, setConfirmPriceBusy] = useState(false);
+  const [contractNumber, setContractNumber] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -48,6 +49,7 @@ export default function WorkerOrderPage() {
         payment_method?: string;
         payment_status?: string;
         payout_released?: boolean;
+        contract_number?: string | null;
         requests?: { summary?: string | null; category?: string | null } | null;
       };
       events: { event_type: string }[];
@@ -63,6 +65,8 @@ export default function WorkerOrderPage() {
       if (typeof r.data.order.payout_released === "boolean") {
         setPayoutReleased(r.data.order.payout_released);
       }
+      const cn = r.data.order.contract_number;
+      if (typeof cn === "string" && cn.trim()) setContractNumber(cn.trim());
       const rq = r.data.order.requests;
       if (rq && (rq.summary || rq.category)) {
         setReqLine([rq.category, rq.summary].filter(Boolean).join(" — "));
@@ -146,6 +150,11 @@ export default function WorkerOrderPage() {
     <div className="min-h-dvh px-4 pt-4 pb-28 space-y-3">
       <TwaShell />
       <h1 className="text-lg font-bold gradient-text">Buyurtma</h1>
+      {contractNumber && (
+        <p className="text-[11px] text-cyan-200/90 font-mono mb-2">
+          Shartnoma: <span className="text-white">{contractNumber}</span>
+        </p>
+      )}
       {reqLine && (
         <GlassCard className="p-4 space-y-2 border border-white/10">
           <p className="text-[11px] uppercase text-white/40">Kelishuv</p>

@@ -11,6 +11,7 @@ type Row = {
   id: string;
   status: string;
   price_cents: number;
+  contract_number?: string | null;
   requests?: { summary?: string | null };
 };
 
@@ -53,6 +54,9 @@ export default function ClientOrdersPage() {
         {rows.map((o) => (
           <Link key={o.id} href={`/client/order/${o.id}`}>
             <GlassCard className="p-4">
+              {o.contract_number && (
+                <p className="text-[10px] font-mono text-cyan-200/85 mb-1">{o.contract_number}</p>
+              )}
               <p className="text-sm font-medium text-white">
                 {o.requests?.summary || "Buyurtma"}
               </p>

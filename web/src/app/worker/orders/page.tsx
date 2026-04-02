@@ -11,6 +11,7 @@ type Row = {
   id: string;
   status: string;
   price_cents: number;
+  contract_number?: string | null;
   requests?: { summary?: string | null };
 };
 
@@ -38,6 +39,9 @@ export default function WorkerOrdersPage() {
         {rows.map((o) => (
           <Link key={o.id} href={`/worker/order/${o.id}`}>
             <GlassCard className="p-4">
+              {o.contract_number && (
+                <p className="text-[10px] font-mono text-cyan-200/85 mb-1">{o.contract_number}</p>
+              )}
               <p className="text-sm">{o.requests?.summary || "Buyurtma"}</p>
               <p className="text-xs text-white/45 mt-1">{o.status}</p>
             </GlassCard>

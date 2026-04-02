@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       eta_minutes: etaMinutes,
       commission_cents: commission,
     })
-    .select("id")
+    .select("id, contract_number")
     .single();
   if (error || !ord) {
     return NextResponse.json({ error: "Buyurtma yaratilmadi" }, { status: 500 });
@@ -131,12 +131,14 @@ export async function POST(req: NextRequest) {
     void notifyWorkerNewOrder({
       workerTelegramId: chatId,
       orderId: ord.id as string,
+      contractNumber: ord.contract_number as string,
       summary: summaryText,
     });
   }
 
   return NextResponse.json({
     orderId: ord.id,
+    contractNumber: ord.contract_number as string,
     commission_cents: commission,
     price_cents: priceCents,
     eta_minutes: etaMinutes,

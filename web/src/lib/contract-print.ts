@@ -9,6 +9,8 @@ function esc(s: string): string {
 /** Brauzerda yangi varaqda ochiladi — «Chop etish» orqali PDF sifatida saqlash mumkin. */
 export function openPrintableContract(opts: {
   orderId: string;
+  /** Inson uchun qisqa identifikator (masalan Sh-2026-0000001). */
+  contractNumber?: string;
   subjectLine: string;
   priceCents: number;
   address?: string;
@@ -34,7 +36,8 @@ export function openPrintableContract(opts: {
 </head>
 <body>
   <h1>Usta Call — qisqa kelishuv</h1>
-  <div class="row"><span class="label">Buyurtma ID</span><br/><strong>${esc(opts.orderId)}</strong></div>
+  <div class="row"><span class="label">Shartnoma raqami</span><br/><strong>${esc(opts.contractNumber || opts.orderId)}</strong></div>
+  ${opts.contractNumber ? `<div class="row"><span class="label">Tizim ID</span><br/><span class="muted" style="margin:0">${esc(opts.orderId)}</span></div>` : ""}
   <div class="row"><span class="label">Ish / so‘rov</span><br/>${esc(opts.subjectLine || "—")}</div>
   ${opts.workerName ? `<div class="row"><span class="label">Usta</span><br/>${esc(opts.workerName)}</div>` : ""}
   ${opts.address ? `<div class="row"><span class="label">Manzil</span><br/>${esc(opts.address)}</div>` : ""}

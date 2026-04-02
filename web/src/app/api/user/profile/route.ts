@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSession, loadWorkerProfile, workerProfileComplete } from "@/lib/api-auth";
 import { getServiceSupabase } from "@/lib/supabase/admin";
 import { sanitizeText, sanitizeStringArray } from "@/lib/sanitize";
+import { normalizePortfolioFromDb } from "@/lib/portfolio";
 
 const Body = z.object({
   displayName: z.string().min(2).max(120).optional(),
@@ -16,6 +17,15 @@ const Body = z.object({
   priceMaxCents: z.number().int().nonnegative().optional(),
   workingHours: z.record(z.string()).optional(),
   isAvailable: z.boolean().optional(),
+  portfolio: z
+    .array(
+      z.object({
+        imageUrl: z.string().url().max(2048),
+        caption: z.string().max(240).optional(),
+      })
+    )
+    .max(12)
+    .optional(),
 });
 
 export async function PATCH(req: NextRequest) {
@@ -45,6 +55,14 @@ export async function PATCH(req: NextRequest) {
     if (body.priceMaxCents != null) wp.price_max_cents = body.priceMaxCents;
     if (body.workingHours != null) wp.working_hours = body.workingHours;
     if (body.isAvailable != null) wp.is_available = body.isAvailable;
+    if (body.portfolio != null) {
+      wp.portfolio = normalizePortfolioFromDb(
+        body.portfolio.map((p) => ({
+          imageUrl: p.imageUrl,
+          caption: p.caption,
+        }))
+      );
+    }
     if (Object.keys(wp).length > 1) {
       await sb.from("worker_profiles").upsert(
         { user_id: ctx.userId, ...wp },
