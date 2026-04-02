@@ -1,0 +1,28 @@
+# Secrets — hech qachon commit qilinmasin
+.env
+.env.*
+!.env.example
+web/.env
+web/.env.*
+!web/.env.example
+
+# Dependencies & build
+web/node_modules/
+web/.next/
+web/out/
+web/build/
+web/.vercel/
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.pem
+
+# TypeScript
+web/next-env.d.ts
+web/*.tsbuildinfo
