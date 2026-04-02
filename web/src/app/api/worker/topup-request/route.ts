@@ -5,7 +5,8 @@ import { getServiceSupabase } from "@/lib/supabase/admin";
 import { rateLimit } from "@/lib/rate-limit";
 
 const Body = z.object({
-  amountCents: z.number().int().min(10_000).max(50_000_000),
+  amountCents: z.number().int().min(30_000).max(50_000_000),
+  receiptUrl: z.string().url().max(2048),
 });
 
 /** Usta to‘ldirish so‘rovi — admin tasdig‘idan keyin balansga qo‘shiladi. */
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest) {
     .insert({
       worker_id: ctx.userId,
       amount_cents: body.amountCents,
+      receipt_url: body.receiptUrl,
       status: "pending",
     })
     .select("id, amount_cents, created_at")

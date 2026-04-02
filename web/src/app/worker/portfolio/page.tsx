@@ -161,12 +161,13 @@ export default function WorkerPortfolioPage() {
               : "Telegramdan rasm tanlash (galereya / kamera)"}
         </button>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           {portfolioItems.map((row, i) => (
             <div
               key={`${row.imageUrl}-${i}`}
               className="rounded-xl border border-white/10 bg-black/25 p-3 space-y-2"
             >
+              <p className="text-xs font-semibold text-cyan-200/90">Portfolio #{i + 1}</p>
               {row.imageUrl.startsWith("http") && (
                 <div className="pt-1">
                   {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -8,6 +8,7 @@ import {
   requestTelegramContactPhone,
 } from "@/lib/twa-profile";
 import { apiJson } from "@/lib/api-client";
+import { FORCE_ONBOARDING_AFTER_LOGOUT } from "@/lib/auth-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -56,6 +57,21 @@ export function BootClient() {
     [router]
   );
 
+  const routeAfterAuth = useCallback(
+    (m: Me) => {
+      if (
+        typeof window !== "undefined" &&
+        sessionStorage.getItem(FORCE_ONBOARDING_AFTER_LOGOUT) === "1"
+      ) {
+        sessionStorage.removeItem(FORCE_ONBOARDING_AFTER_LOGOUT);
+        router.replace("/onboarding");
+        return;
+      }
+      go(m);
+    },
+    [go, router]
+  );
+
   const attachPhoneAndContinue = useCallback(async () => {
     if (!meData) return;
     setPhoneLoading(true);
@@ -89,19 +105,19 @@ export function BootClient() {
         return;
       }
       setPhase("route");
-      go(me.data);
+      routeAfterAuth(me.data);
     } catch (e) {
       setPhoneLoading(false);
       setPhase("err");
       setMsg(e instanceof Error ? e.message : "Noma'lum xato");
     }
-  }, [go, meData]);
+  }, [routeAfterAuth, meData]);
 
   const skipPhone = useCallback(() => {
     if (!meData) return;
     setPhase("route");
-    go(meData);
-  }, [go, meData]);
+    routeAfterAuth(meData);
+  }, [routeAfterAuth, meData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,7 +156,7 @@ export function BootClient() {
           return;
         }
         setPhase("route");
-        go(me.data);
+        routeAfterAuth(me.data);
       } catch (e) {
         if (!cancelled) {
           setPhase("err");
@@ -151,7 +167,7 @@ export function BootClient() {
     return () => {
       cancelled = true;
     };
-  }, [go]);
+  }, [routeAfterAuth]);
 
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center bg-[#070a12] px-5 safe-pb">

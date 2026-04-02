@@ -18,6 +18,7 @@ type TopupRow = {
   status: string;
   created_at: string;
   resolved_at: string | null;
+  receipt_url?: string | null;
   worker_label?: string | null;
 };
 
@@ -75,6 +76,16 @@ export default function AdminPage() {
                 {(t.amount_cents ?? 0).toLocaleString("uz-UZ")} so‘m
               </p>
               <p className="text-[11px] text-white/50">{t.worker_label ?? t.worker_id}</p>
+              {t.receipt_url?.startsWith("http") && (
+                <a
+                  href={t.receipt_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block text-xs text-cyan-300 underline"
+                >
+                  Chekni ochish
+                </a>
+              )}
               <p className="text-[10px] text-white/35">
                 {new Date(t.created_at).toLocaleString("uz-UZ")}
               </p>

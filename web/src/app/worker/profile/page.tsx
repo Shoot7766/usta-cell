@@ -1,7 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadWebApp } from "@/lib/twa";
@@ -16,6 +15,7 @@ import { hapticSuccess } from "@/lib/haptic";
 import { WORKER_TRADE_OPTIONS } from "@/lib/worker-trades";
 import { reverseGeocodeCity } from "@/lib/reverse-geocode";
 import { getWorkerTopupCardDisplay } from "@/lib/worker-topup-public";
+import { logoutToRolePicker } from "@/lib/auth-client";
 
 const MiniMapPicker = dynamic(
   () =>
@@ -62,7 +62,11 @@ export default function WorkerProfilePage() {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [tgUser, setTgUser] = useState<TgUser | null>(null);
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
   const [selectedTrades, setSelectedTrades] = useState<string[]>([]);
+  const [tradeQuery, setTradeQuery] = useState("");
   const [bio, setBio] = useState("");
   const [cityName, setCityName] = useState("");
   const [mapLat, setMapLat] = useState(FALLBACK_REGION_LAT);
@@ -72,14 +76,18 @@ export default function WorkerProfilePage() {
   const [saving, setSaving] = useState(false);
   const [locLoading, setLocLoading] = useState(false);
   const [topupLoading, setTopupLoading] = useState(false);
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [receiptLabel, setReceiptLabel] = useState<string | null>(null);
+  const [receiptUploading, setReceiptUploading] = useState(false);
   const [ready, setReady] = useState(false);
-  const [tgReady, setTgReady] = useState(false);
-  const syncedTgName = useRef(false);
   const geoDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
 
   const cardDisplay = useMemo(() => getWorkerTopupCardDisplay(), []);
 
   const displayNameLine = useMemo(() => {
+    const manual = editDisplayName.trim();
+    if (manual) return manual;
     if (tgUser?.first_name) {
       return [tgUser.first_name, tgUser.last_name].filter(Boolean).join(" ").trim();
     }
@@ -88,14 +96,24 @@ export default function WorkerProfilePage() {
     const fromDb = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
     if (fromDb) return fromDb;
     return u.displayName?.trim() || "—";
-  }, [tgUser, me]);
+  }, [editDisplayName, tgUser, me]);
+
+  const filteredTradeOptions = useMemo(() => {
+    const q = tradeQuery.trim().toLowerCase();
+    if (!q) return [...WORKER_TRADE_OPTIONS];
+    return WORKER_TRADE_OPTIONS.filter((t) => t.toLowerCase().includes(q));
+  }, [tradeQuery]);
+
+  const legacyExtras = useMemo(
+    () => selectedTrades.filter((s) => !tradeSet.has(s)),
+    [selectedTrades]
+  );
 
   useEffect(() => {
     void loadWebApp().then((WebApp) => {
       WebApp.BackButton.hide();
       const u = WebApp.initDataUnsafe?.user as TgUser | undefined;
-      if (u && typeof u === "object") setTgUser(u);
-      setTgReady(true);
+      if (u && typeof u === "object")       setTgUser(u);
     });
   }, []);
 
@@ -123,10 +141,9 @@ export default function WorkerProfilePage() {
         return;
       }
       const wp = data.workerProfile;
-      if (wp?.services?.length) {
-        const known = wp.services.filter((s) => tradeSet.has(s));
-        setSelectedTrades(known.length ? known : []);
-      }
+      setEditDisplayName(data.user.displayName?.trim() ?? "");
+      setEditPhone(data.user.phone?.trim() ?? "");
+      setSelectedTrades(wp?.services?.length ? [...wp.services] : []);
       if (wp?.lat != null && Number.isFinite(wp.lat)) setMapLat(wp.lat);
       if (wp?.lng != null && Number.isFinite(wp.lng)) setMapLng(wp.lng);
       if (wp?.bio) setBio(wp.bio);
@@ -134,32 +151,6 @@ export default function WorkerProfilePage() {
       setReady(true);
     })();
   }, [router]);
-
-  useEffect(() => {
-    if (!ready || !tgReady || syncedTgName.current || !me) return;
-    const u = tgUser;
-    if (!u || !u.first_name) {
-      syncedTgName.current = true;
-      return;
-    }
-    const dn = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
-    if (!dn) {
-      syncedTgName.current = true;
-      return;
-    }
-    if (dn === me.user.displayName?.trim()) {
-      syncedTgName.current = true;
-      return;
-    }
-    syncedTgName.current = true;
-    void (async () => {
-      await apiJson("/api/user/profile", {
-        method: "PATCH",
-        body: JSON.stringify({ displayName: dn }),
-      });
-      await loadMe();
-    })();
-  }, [ready, tgReady, tgUser, me]);
 
   useEffect(() => {
     if (!ready) return;
@@ -202,6 +193,30 @@ export default function WorkerProfilePage() {
     );
   };
 
+  const removeLegacyExtra = (label: string) => {
+    setSelectedTrades((prev) => prev.filter((x) => x !== label));
+  };
+
+  const saveProfileBasics = async () => {
+    const WebApp = await loadWebApp();
+    const name = editDisplayName.trim();
+    if (name.length < 2) {
+      WebApp.showAlert("Ism kamida 2 belgi bo‘lsin.");
+      return;
+    }
+    setProfileSaving(true);
+    await apiJson("/api/user/profile", {
+      method: "PATCH",
+      body: JSON.stringify({
+        displayName: name,
+        phone: editPhone.trim() || undefined,
+      }),
+    });
+    setProfileSaving(false);
+    WebApp.showAlert("Profil saqlandi.");
+    await loadMe();
+  };
+
   const saveDetails = async () => {
     const WebApp = await loadWebApp();
     if (selectedTrades.length === 0) {
@@ -225,18 +240,51 @@ export default function WorkerProfilePage() {
     await loadMe();
   };
 
+  const onReceiptPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setReceiptUploading(true);
+    const fd = new FormData();
+    fd.set("file", file);
+    const res = await fetch("/api/media/topup-receipt", {
+      method: "POST",
+      body: fd,
+      credentials: "include",
+    });
+    setReceiptUploading(false);
+    const WebApp = await loadWebApp();
+    if (!res.ok) {
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      WebApp.showAlert(j.error || "Chek yuklanmadi");
+      return;
+    }
+    const j = (await res.json()) as { url?: string };
+    if (j.url) {
+      setReceiptUrl(j.url);
+      setReceiptLabel(file.name);
+      hapticSuccess();
+    }
+  };
+
   const requestTopup = async (amountCents: number) => {
+    const WebApp = await loadWebApp();
+    if (!receiptUrl) {
+      WebApp.showAlert("Avval chek rasmini yuklang.");
+      return;
+    }
     setTopupLoading(true);
     const r = await apiJson("/api/worker/topup-request", {
       method: "POST",
-      body: JSON.stringify({ amountCents }),
+      body: JSON.stringify({ amountCents, receiptUrl }),
     });
     setTopupLoading(false);
-    const WebApp = await loadWebApp();
     if (r.ok) {
       hapticSuccess();
+      setReceiptUrl(null);
+      setReceiptLabel(null);
       WebApp.showAlert(
-        "So‘rov yuborildi. Ko‘rsatilgan kartaga pul o‘tkazing. Admin tasdig‘idan keyin qabul balansiga tushadi."
+        "So‘rov yuborildi. Admin chek va summani tasdiqlagach qabul balansiga tushadi."
       );
     } else {
       WebApp.showAlert(r.error || "So‘rov yuborilmadi");
@@ -250,7 +298,6 @@ export default function WorkerProfilePage() {
   const earnings = me?.workerEarningsCents ?? 0;
   const leadsBal = me?.workerLeadsBalanceCents ?? 0;
   const freeAcceptsLeft = me?.workerFreeAcceptsRemaining ?? 0;
-  const phoneLine = me?.user.phone?.trim() || null;
   const acceptFeeStr = ORDER_ACCEPT_FEE_CENTS.toLocaleString("uz-UZ");
 
   if (!ready || !me) {
@@ -282,25 +329,36 @@ export default function WorkerProfilePage() {
               {displayNameLine.slice(0, 1).toUpperCase()}
             </div>
           )}
-          <div className="min-w-0 space-y-1">
-            <p className="text-sm font-semibold text-white truncate">{displayNameLine}</p>
-            <p className="text-xs text-white/50">
-              {phoneLine ? (
-                <span className="text-white/80">{phoneLine}</span>
-              ) : (
-                <>
-                  Telefon kiritilmagan —{" "}
-                  <Link href="/onboarding/worker" className="text-cyan-300 underline">
-                    sozlash
-                  </Link>
-                </>
-              )}
-            </p>
-            <p className="text-[10px] text-white/35">
-              Ism va avatar Telegramdan; telefon onboardingda saqlanadi.
-            </p>
+          <div className="min-w-0 flex-1 space-y-2">
+            <p className="text-[10px] text-white/35">Ko‘rinish (Telegram rasmi alohida)</p>
+            <input
+              className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
+              placeholder="Ism"
+              value={editDisplayName}
+              onChange={(e) => setEditDisplayName(e.target.value)}
+            />
+            <input
+              className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
+              placeholder="Telefon"
+              value={editPhone}
+              onChange={(e) => setEditPhone(e.target.value)}
+            />
+            <PrimaryButton
+              className="!py-2 !text-xs"
+              disabled={profileSaving}
+              onClick={() => void saveProfileBasics()}
+            >
+              {profileSaving ? "Saqlanmoqda…" : "Profilni saqlash"}
+            </PrimaryButton>
           </div>
         </div>
+        <button
+          type="button"
+          className="w-full rounded-xl border border-white/12 bg-white/5 py-2.5 text-xs text-white/65"
+          onClick={() => void logoutToRolePicker()}
+        >
+          Profildan chiqish (keyin mijoz sifatida kirish mumkin)
+        </button>
       </GlassCard>
 
       <GlassCard className="p-4 mb-3 space-y-3 border border-cyan-500/20">
@@ -331,19 +389,40 @@ export default function WorkerProfilePage() {
           <p className="text-xs text-white/70 font-mono tracking-wide">{cardDisplay.number}</p>
           <p className="text-[11px] text-white/55">{cardDisplay.holder}</p>
           <p className="text-[10px] text-white/40 leading-relaxed">
-            Summani tanlang, keyin yuqoridagi kartaga o‘tkazing. «To‘ldirish so‘rovi» yuboriladi —
-            admin tasdig‘idan keyin qabul balansiga qo‘shiladi.
+            1) Chekni yuklang. 2) Kartaga pul o‘tkazing. 3) Summani tanlang — so‘rov admin oldiga
+            tushadi; tasdiqlangach balansga qo‘shiladi.
           </p>
         </div>
+        <input
+          ref={receiptInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={(e) => void onReceiptPicked(e)}
+        />
+        <button
+          type="button"
+          disabled={receiptUploading}
+          className="w-full rounded-xl border border-amber-400/25 bg-amber-500/10 py-2.5 text-sm text-amber-100/95 disabled:opacity-45"
+          onClick={() => receiptInputRef.current?.click()}
+        >
+          {receiptUploading ? "Yuklanmoqda…" : "Chek rasmini yuklash (majburiy)"}
+        </button>
+        {receiptUrl && (
+          <p className="text-[11px] text-emerald-300/90">
+            Chek qabul qilindi{receiptLabel ? `: ${receiptLabel}` : ""}
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           {[
+            { label: "+30 000", cents: 30_000 },
             { label: "+50 000", cents: 50_000 },
             { label: "+100 000", cents: 100_000 },
           ].map((p) => (
             <button
               key={p.cents}
               type="button"
-              disabled={topupLoading}
+              disabled={topupLoading || !receiptUrl}
               className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs disabled:opacity-45"
               onClick={() => void requestTopup(p.cents)}
             >
@@ -390,25 +469,69 @@ export default function WorkerProfilePage() {
           {locLoading ? "Aniqlanmoqda…" : "Joylashuvni aniqlash"}
         </button>
         <div className="space-y-2">
-          <p className="text-[10px] uppercase text-white/40">Ustachilik turlari</p>
-          <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-1">
-            {WORKER_TRADE_OPTIONS.map((t) => {
-              const on = selectedTrades.includes(t);
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => toggleTrade(t)}
-                  className={`rounded-full border px-3 py-1.5 text-[11px] transition-colors ${
-                    on
-                      ? "border-cyan-400/50 bg-cyan-500/20 text-cyan-100"
-                      : "border-white/12 bg-white/5 text-white/55"
-                  }`}
-                >
-                  {t}
-                </button>
-              );
-            })}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] uppercase text-white/40">Ustachilik turlari</p>
+            <span className="text-[10px] text-white/45 tabular-nums">
+              Tanlangan: {selectedTrades.length}
+            </span>
+          </div>
+          <input
+            className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
+            placeholder="Qidirish (masalan: santex, elektr…)"
+            value={tradeQuery}
+            onChange={(e) => setTradeQuery(e.target.value)}
+          />
+          {legacyExtras.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] text-amber-200/70">Eski tanlovlar (ro‘yxatdan tashqari)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {legacyExtras.map((x) => (
+                  <span
+                    key={x}
+                    className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-100/90"
+                  >
+                    {x}
+                    <button
+                      type="button"
+                      className="text-rose-300"
+                      onClick={() => removeLegacyExtra(x)}
+                      aria-label="Olib tashlash"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="max-h-56 overflow-y-auto rounded-xl border border-white/10 bg-black/20 pr-1">
+            {filteredTradeOptions.length === 0 && (
+              <p className="p-3 text-xs text-white/40">Hech narsa topilmadi.</p>
+            )}
+            <ul className="divide-y divide-white/5">
+              {filteredTradeOptions.map((t) => {
+                const on = selectedTrades.includes(t);
+                return (
+                  <li key={t}>
+                    <button
+                      type="button"
+                      onClick={() => toggleTrade(t)}
+                      className={`flex w-full items-start gap-2 px-3 py-2.5 text-left text-xs transition-colors ${
+                        on ? "bg-cyan-500/15 text-cyan-50" : "text-white/70 hover:bg-white/5"
+                      }`}
+                    >
+                      <span
+                        className={`mt-0.5 h-4 w-4 shrink-0 rounded border ${
+                          on ? "border-cyan-400 bg-cyan-500/40" : "border-white/25"
+                        }`}
+                        aria-hidden
+                      />
+                      <span className="leading-snug">{t}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </div>
         <textarea

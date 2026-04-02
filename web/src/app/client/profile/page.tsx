@@ -7,6 +7,8 @@ import { loadWebApp } from "@/lib/twa";
 import { apiJson } from "@/lib/api-client";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
+import { GlassCard } from "@/components/ui/GlassCard";
+import { logoutToRolePicker } from "@/lib/auth-client";
 
 type Me = {
   user: {
@@ -37,6 +39,9 @@ export default function ClientProfilePage() {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [tgAvatarUrl, setTgAvatarUrl] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     void loadWebApp().then((WebApp) => {
@@ -50,7 +55,11 @@ export default function ClientProfilePage() {
 
   const refresh = async () => {
     const r = await apiJson<Me>("/api/me");
-    if (r.ok && r.data) setMe(r.data);
+    if (r.ok && r.data) {
+      setMe(r.data);
+      setEditName(r.data.user.displayName?.trim() ?? "");
+      setEditPhone(r.data.user.phone?.trim() ?? "");
+    }
   };
 
   useEffect(() => {
@@ -64,6 +73,26 @@ export default function ClientProfilePage() {
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
+
+  const saveProfile = async () => {
+    const WebApp = await loadWebApp();
+    const name = editName.trim();
+    if (name.length < 2) {
+      WebApp.showAlert("Ism kamida 2 belgi bo‘lsin.");
+      return;
+    }
+    setSaving(true);
+    await apiJson("/api/user/profile", {
+      method: "PATCH",
+      body: JSON.stringify({
+        displayName: name,
+        phone: editPhone.trim() || undefined,
+      }),
+    });
+    setSaving(false);
+    WebApp.showAlert("Profil saqlandi.");
+    await refresh();
+  };
 
   const roleUz =
     me?.user.role === "worker"
@@ -141,9 +170,39 @@ export default function ClientProfilePage() {
           </motion.div>
 
           <motion.div variants={fadeUp}>
+            <GlassCard className="p-4 space-y-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                Profilni tahrirlash
+              </p>
+              <input
+                className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
+                placeholder="Ism"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+              <input
+                className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
+                placeholder="Telefon"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+              />
+              <PrimaryButton disabled={saving} onClick={() => void saveProfile()}>
+                {saving ? "Saqlanmoqda…" : "Saqlash"}
+              </PrimaryButton>
+              <button
+                type="button"
+                className="w-full rounded-xl border border-white/12 bg-white/5 py-2.5 text-xs text-white/65"
+                onClick={() => void logoutToRolePicker()}
+              >
+                Profildan chiqish (keyin usta sifatida kirish mumkin)
+              </button>
+            </GlassCard>
+          </motion.div>
+
+          <motion.div variants={fadeUp}>
             <div className="glass-panel rounded-2xl p-4">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
-                Aloqa
+                Aloqa (joriy)
               </p>
               <div className="mt-3 flex items-center gap-3 rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.08] text-white/60">
@@ -169,7 +228,7 @@ export default function ClientProfilePage() {
 
           <motion.div variants={fadeUp}>
             <PrimaryButton onClick={() => router.push("/onboarding")}>
-              Rol va profil sozlamalari
+              Qo‘shimcha sozlamalar (rol)
             </PrimaryButton>
           </motion.div>
         </motion.div>

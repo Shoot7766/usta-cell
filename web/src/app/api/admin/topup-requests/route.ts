@@ -10,7 +10,7 @@ export async function GET() {
   const sb = getServiceSupabase();
   const { data, error } = await sb
     .from("worker_topup_requests")
-    .select("id, worker_id, amount_cents, status, created_at, resolved_at")
+    .select("id, worker_id, amount_cents, status, created_at, resolved_at, receipt_url")
     .order("created_at", { ascending: false })
     .limit(80);
   if (error) {
