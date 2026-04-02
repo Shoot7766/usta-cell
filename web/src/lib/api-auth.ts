@@ -26,26 +26,49 @@ export function requireRole(ctx: AuthedContext, roles: Role[]): true | Response 
   return true;
 }
 
-export async function loadUserProfile(userId: string) {
+export type LoadedUserProfile = {
+  id: string;
+  role: Role;
+  profile_completed: boolean;
+  pending_role: Role | null;
+  display_name: string | null;
+  phone: string | null;
+  onboarding_step: string;
+  wallet_balance_cents: number;
+};
+
+const USERS_SELECT_WITH_WALLET =
+  "id, role, profile_completed, pending_role, display_name, phone, onboarding_step, wallet_balance_cents";
+const USERS_SELECT_BASE =
+  "id, role, profile_completed, pending_role, display_name, phone, onboarding_step";
+
+/**
+ * wallet_balance_cents migratsiyasi hali qo‘llanmagan DB uchun: birinchi so‘rov xato bersa,
+ * asosiy ustunlar bilan qayta urinadi (balans 0 deb qabul qilinadi).
+ */
+export async function loadUserProfile(userId: string): Promise<LoadedUserProfile | null> {
   const sb = getServiceSupabase();
-  const { data, error } = await sb
+  const first = await sb
     .from("users")
-    .select(
-      "id, role, profile_completed, pending_role, display_name, phone, onboarding_step, wallet_balance_cents"
-    )
+    .select(USERS_SELECT_WITH_WALLET)
     .eq("id", userId)
     .maybeSingle();
-  if (error || !data) return null;
-  return data as {
-    id: string;
-    role: Role;
-    profile_completed: boolean;
-    pending_role: Role | null;
-    display_name: string | null;
-    phone: string | null;
-    onboarding_step: string;
-    wallet_balance_cents: number;
-  };
+  if (!first.error && first.data) {
+    return first.data as LoadedUserProfile;
+  }
+  if (first.error) {
+    const second = await sb
+      .from("users")
+      .select(USERS_SELECT_BASE)
+      .eq("id", userId)
+      .maybeSingle();
+    if (second.error || !second.data) return null;
+    return {
+      ...(second.data as Omit<LoadedUserProfile, "wallet_balance_cents">),
+      wallet_balance_cents: 0,
+    };
+  }
+  return null;
 }
 
 export async function loadWorkerProfile(userId: string) {
