@@ -23,9 +23,14 @@ export async function apiJson<T>(
     body && typeof body === "object" && "error" in body
       ? String((body as { error: string }).error)
       : undefined;
+  const detail =
+    body && typeof body === "object" && "detail" in body && (body as { detail?: unknown }).detail
+      ? String((body as { detail: unknown }).detail)
+      : undefined;
+  const combined = [err, detail].filter(Boolean).join(" — ");
   if (!r.ok) {
     const fallback =
-      err ||
+      combined ||
       (text && text.length < 400 && !text.trimStart().startsWith("<")
         ? text
         : r.statusText) ||
