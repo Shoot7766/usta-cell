@@ -31,7 +31,7 @@ export async function loadUserProfile(userId: string) {
   const { data, error } = await sb
     .from("users")
     .select(
-      "id, role, profile_completed, pending_role, display_name, phone, onboarding_step"
+      "id, role, profile_completed, pending_role, display_name, phone, onboarding_step, wallet_balance_cents"
     )
     .eq("id", userId)
     .maybeSingle();
@@ -44,6 +44,7 @@ export async function loadUserProfile(userId: string) {
     display_name: string | null;
     phone: string | null;
     onboarding_step: string;
+    wallet_balance_cents: number;
   };
 }
 

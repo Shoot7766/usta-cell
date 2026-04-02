@@ -18,6 +18,7 @@ export async function GET() {
       pendingRole: u.pending_role,
       displayName: u.display_name,
       phone: u.phone,
+      walletBalanceCents: u.wallet_balance_cents ?? 0,
       onboardingStep: u.onboarding_step,
       workerProfileOk: u.role === "worker" ? workerProfileComplete(worker) : true,
     },

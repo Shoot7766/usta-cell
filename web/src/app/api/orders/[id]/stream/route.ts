@@ -48,7 +48,7 @@ export async function GET(
         const { data: row } = await sb
           .from("orders")
           .select(
-            "status, updated_at, accepted_at, work_started_at, completed_at, arrived_deadline_at, price_cents, payment_method, payment_status"
+            "status, updated_at, accepted_at, work_started_at, completed_at, arrived_deadline_at, price_cents, payment_method, payment_status, payout_released"
           )
           .eq("id", id)
           .maybeSingle();

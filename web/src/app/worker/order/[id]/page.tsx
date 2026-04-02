@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { loadWebApp } from "@/lib/twa";
 import { apiJson } from "@/lib/api-client";
@@ -18,6 +18,8 @@ export default function WorkerOrderPage() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentStatus, setPaymentStatus] = useState("pending");
   const [payLoading, setPayLoading] = useState(false);
+  const [payoutReleased, setPayoutReleased] = useState(false);
+  const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +44,7 @@ export default function WorkerOrderPage() {
         price_cents?: number;
         payment_method?: string;
         payment_status?: string;
+        payout_released?: boolean;
       };
     }>(`/api/orders/${id}`);
     if (r.ok && r.data) {
@@ -52,11 +55,30 @@ export default function WorkerOrderPage() {
       }
       if (r.data.order.payment_method) setPaymentMethod(r.data.order.payment_method);
       if (r.data.order.payment_status) setPaymentStatus(r.data.order.payment_status);
+      if (typeof r.data.order.payout_released === "boolean") {
+        setPayoutReleased(r.data.order.payout_released);
+      }
     }
   };
 
   useEffect(() => {
     void load();
+    const es = new EventSource(`/api/orders/${id}/stream`);
+    esRef.current = es;
+    es.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data) as {
+          order?: { payout_released?: boolean; status?: string };
+        };
+        if (typeof msg?.order?.payout_released === "boolean") {
+          setPayoutReleased(msg.order.payout_released);
+        }
+        if (msg?.order?.status) setStatus(msg.order.status);
+      } catch {
+        /* */
+      }
+    };
+    return () => es.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -108,6 +130,16 @@ export default function WorkerOrderPage() {
           To‘lov: {PAYMENT_METHOD_UZ[paymentMethod] ?? paymentMethod} ·{" "}
           {PAYMENT_STATUS_UZ[paymentStatus] ?? paymentStatus}
         </p>
+        {status === "completed" && !payoutReleased && (
+          <p className="text-[11px] text-amber-200/85 leading-relaxed">
+            Mijoz hamyondan pulni ustaga o‘tkazmaguncha kuting (mini-ilovada tasdiqlash).
+          </p>
+        )}
+        {status === "completed" && payoutReleased && (
+          <p className="text-[11px] text-emerald-300/90">
+            Mijoz to‘lovni tasdiqladi — summa hisobingizga o‘tkazildi.
+          </p>
+        )}
       </GlassCard>
       <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={unlock}>
         Lead: mijoz kontakti

@@ -5,11 +5,22 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { sanitizeText } from "@/lib/sanitize";
 import { runDispatcherTurn } from "@/lib/openai/dispatcher";
 import { getServiceSupabase } from "@/lib/supabase/admin";
+import { chatImagePathToDataUrl } from "@/lib/chat-image";
 
-const Body = z.object({
-  requestId: z.string().uuid().optional(),
-  message: z.string().min(1).max(4000),
-});
+const Body = z
+  .object({
+    requestId: z.string().uuid().optional(),
+    message: z.string().max(4000).optional(),
+    imagePath: z.string().max(512).optional(),
+  })
+  .refine(
+    (b) => {
+      const m = (b.message ?? "").trim();
+      const p = (b.imagePath ?? "").trim();
+      return m.length > 0 || p.length > 0;
+    },
+    { message: "Matn yoki rasm yo'li kerak" }
+  );
 
 export async function POST(req: NextRequest) {
   const ip = clientIp(req.headers);
@@ -27,8 +38,17 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Noto'g'ri so'rov" }, { status: 400 });
   }
-  const text = sanitizeText(body.message, 4000);
+  const rawMsg = (body.message ?? "").trim();
+  const text = rawMsg ? sanitizeText(rawMsg, 4000) : "";
+  const imagePath = (body.imagePath ?? "").trim();
   const sb = getServiceSupabase();
+  let dataUrl: string | null = null;
+  if (imagePath) {
+    dataUrl = await chatImagePathToDataUrl(sb, imagePath, ctx.userId);
+    if (!dataUrl) {
+      return NextResponse.json({ error: "Rasm topilmadi yoki ruxsat yo'q" }, { status: 400 });
+    }
+  }
   let requestId = body.requestId;
   let conversation: { role: "user" | "assistant"; content: string }[] = [];
   if (requestId) {
@@ -53,8 +73,15 @@ export async function POST(req: NextRequest) {
       .single();
     requestId = ins?.id as string;
   }
-  conversation.push({ role: "user", content: text });
-  const ai = await runDispatcherTurn({ userMessages: conversation });
+  const userLine =
+    [text, imagePath ? "[Rasm yuborildi]" : ""].filter(Boolean).join("\n\n") ||
+    "[Rasm yuborildi]";
+  conversation.push({ role: "user", content: userLine });
+  const ai = await runDispatcherTurn({
+    userMessages: conversation,
+    lastUserPlainText: text || (imagePath ? "" : userLine),
+    imageUrl: dataUrl,
+  });
   const assistantLine = [
     ai.summary,
     ai.questions.length ? `Savollar: ${ai.questions.join(" | ")}` : "",
@@ -84,8 +111,11 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", requestId);
+  const readyToMatch = ai.questions.length === 0;
   return NextResponse.json({
     requestId,
+    usedOpenAi: ai.usedOpenAi,
+    readyToMatch,
     ai: {
       category: ai.category,
       urgency: ai.urgency,

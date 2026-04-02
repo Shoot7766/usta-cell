@@ -23,6 +23,7 @@ type OrderPayload = {
   price_cents?: number;
   payment_method?: string;
   payment_status?: string;
+  payout_released?: boolean;
 };
 
 export default function ClientOrderPage() {
@@ -37,6 +38,8 @@ export default function ClientOrderPage() {
   );
   const [review, setReview] = useState({ rating: 5, comment: "" });
   const [paySaving, setPaySaving] = useState(false);
+  const [payoutReleased, setPayoutReleased] = useState(false);
+  const [payoutLoading, setPayoutLoading] = useState(false);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -60,6 +63,7 @@ export default function ClientOrderPage() {
     if (typeof o.price_cents === "number") setPriceCents(o.price_cents);
     if (o.payment_method) setPaymentMethod(o.payment_method);
     if (o.payment_status) setPaymentStatus(o.payment_status);
+    if (typeof o.payout_released === "boolean") setPayoutReleased(o.payout_released);
   };
 
   const load = async () => {
@@ -122,6 +126,21 @@ export default function ClientOrderPage() {
     await load();
   };
 
+  const releasePayout = async () => {
+    setPayoutLoading(true);
+    const r = await apiJson<{ ok?: boolean }>(`/api/orders/${id}/release-payout`, {
+      method: "POST",
+    });
+    setPayoutLoading(false);
+    if (r.ok) {
+      hapticSuccess();
+      setPayoutReleased(true);
+      load();
+    } else if (r.error) {
+      window.alert(r.error);
+    }
+  };
+
   const sendReview = async () => {
     await apiJson("/api/reviews", {
       method: "POST",
@@ -174,8 +193,8 @@ export default function ClientOrderPage() {
           <strong>{PAYMENT_STATUS_UZ[paymentStatus] ?? paymentStatus}</strong>
         </p>
         <p className="text-[11px] text-white/40">
-          Onlayn to‘lov hali ulangan emas — naqd, karta terminali yoki o‘tkazmani ustada
-          kelishasiz. Usta pulni olgach tasdiqlaydi.
+          Hamyon orqali to‘lov: ish tugagach, pastdagi tugma bilan kelishuv summasini ustaga
+          o‘tkazing. Naqd/karta hali ham kelishuv bo‘yicha mumkin.
         </p>
         {status !== "canceled" && status !== "completed" && (
           <div className="flex flex-wrap gap-2 pt-1">
@@ -217,6 +236,31 @@ export default function ClientOrderPage() {
         <PrimaryButton className="mt-3 !py-2 !text-xs" variant="ghost" onClick={openDispute}>
           Nizoni xabar qilish
         </PrimaryButton>
+      )}
+
+      {status === "completed" && !payoutReleased && priceCents > 0 && (
+        <GlassCard className="p-4 mt-4 space-y-2 border border-amber-400/25">
+          <p className="text-sm font-semibold text-amber-200/95">Hamyon orqali to‘lov</p>
+          <p className="text-xs text-white/60">
+            Ish tugaganini tasdiqlaysiz:{" "}
+            <span className="text-neon font-medium">
+              {priceCents.toLocaleString()} so‘m
+            </span>{" "}
+            hamyoningizdan yechiladi va ustaga o‘tkaziladi (komissiya hisobga olinadi).
+          </p>
+          <PrimaryButton
+            disabled={payoutLoading}
+            onClick={() => void releasePayout()}
+          >
+            {payoutLoading ? "Kutilmoqda…" : "Pulni ustaga o‘tkazish"}
+          </PrimaryButton>
+        </GlassCard>
+      )}
+
+      {status === "completed" && payoutReleased && (
+        <p className="text-xs text-emerald-300/90 mt-2 px-1">
+          To‘lov ustaga o‘tkazilgan.
+        </p>
       )}
 
       {status === "completed" && (

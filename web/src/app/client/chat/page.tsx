@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { loadWebApp } from "@/lib/twa";
 import { getBestEffortLatLng } from "@/lib/geo";
 import { FALLBACK_REGION_LAT, FALLBACK_REGION_LNG } from "@/lib/worker-defaults";
-import { apiJson } from "@/lib/api-client";
+import { apiJson, apiForm } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
@@ -14,6 +14,8 @@ import { hapticSuccess } from "@/lib/haptic";
 
 type AiRes = {
   requestId: string;
+  usedOpenAi: boolean;
+  readyToMatch?: boolean;
   ai: {
     category: string;
     urgency: string;
@@ -28,10 +30,17 @@ export default function ClientChatPage() {
   const [text, setText] = useState("");
   const [requestId, setRequestId] = useState<string | null>(null);
   const [lastAi, setLastAi] = useState<AiRes["ai"] | null>(null);
+  const [usedOpenAi, setUsedOpenAi] = useState<boolean | null>(null);
+  const [readyToMatch, setReadyToMatch] = useState(false);
   const [loading, setLoading] = useState(false);
   const [locLoading, setLocLoading] = useState(false);
   const [addressLine, setAddressLine] = useState("");
+  const [pendingImagePath, setPendingImagePath] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const fileImgRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     void loadWebApp().then((WebApp) => {
@@ -41,20 +50,94 @@ export default function ClientChatPage() {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [lastAi, loading]);
+  }, [lastAi, loading, pendingImagePath]);
+
+  const uploadImageFile = async (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await apiForm<{ path: string }>("/api/media/chat-image", fd);
+    if (r.ok && r.data?.path) {
+      setPendingImagePath(r.data.path);
+    } else if (r.error) {
+      window.alert(r.error);
+    }
+  };
+
+  const onPickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (f) void uploadImageFile(f);
+  };
+
+  const stopRecording = () => {
+    const mr = mediaRecorderRef.current;
+    if (mr && mr.state !== "inactive") mr.stop();
+    mediaRecorderRef.current = null;
+    setRecording(false);
+  };
+
+  const startRecording = async () => {
+    if (recording) {
+      stopRecording();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime =
+        typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : "audio/mp4";
+      const mr = new MediaRecorder(stream, { mimeType: mime });
+      chunksRef.current = [];
+      mr.ondataavailable = (ev) => {
+        if (ev.data.size > 0) chunksRef.current.push(ev.data);
+      };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || mime });
+        chunksRef.current = [];
+        const fd = new FormData();
+        const ext = blob.type.includes("webm") ? "webm" : "m4a";
+        fd.append("file", blob, `voice.${ext}`);
+        const r = await apiForm<{ text: string }>("/api/ai/transcribe", fd);
+        if (r.ok && r.data?.text) {
+          setText((prev) => {
+            const t = r.data!.text.trim();
+            if (!t) return prev;
+            return prev ? `${prev.trim()} ${t}` : t;
+          });
+        } else if (r.error) {
+          window.alert(r.error);
+        }
+      };
+      mr.start(200);
+      mediaRecorderRef.current = mr;
+      setRecording(true);
+    } catch {
+      window.alert("Mikrofonga ruxsat berilmadi yoki qo‘llab-quvvatlanmaydi.");
+    }
+  };
 
   const send = async () => {
-    if (!text.trim()) return;
+    const trimmed = text.trim();
+    if (!trimmed && !pendingImagePath) return;
     setLoading(true);
     const r = await apiJson<AiRes>("/api/ai/chat", {
       method: "POST",
-      body: JSON.stringify({ requestId: requestId ?? undefined, message: text.trim() }),
+      body: JSON.stringify({
+        requestId: requestId ?? undefined,
+        message: trimmed || undefined,
+        imagePath: pendingImagePath ?? undefined,
+      }),
     });
     setLoading(false);
-    setText("");
     if (r.ok && r.data) {
       setRequestId(r.data.requestId);
       setLastAi(r.data.ai);
+      setUsedOpenAi(r.data.usedOpenAi);
+      setReadyToMatch(Boolean(r.data.readyToMatch));
+      setText("");
+      setPendingImagePath(null);
     }
   };
 
@@ -67,6 +150,10 @@ export default function ClientChatPage() {
       hapticSuccess();
       router.push(`/client/workers?requestId=${requestId}`);
     }
+  };
+
+  const quickToWorkers = async () => {
+    await submitReq();
   };
 
   const saveLoc = async () => {
@@ -98,8 +185,17 @@ export default function ClientChatPage() {
       <header className="mb-3">
         <h1 className="text-lg font-bold gradient-text">Dispetcher AI</h1>
         <p className="text-xs text-white/50">
-          Qisqa yozing — tizim kategoriya, shoshilinchlik va narx diapazonini ajratadi.
+          Matn, rasm yoki ovoz — tizim tezda kategoriya va ustalar uchun ma’lumot ajratadi.
         </p>
+        {usedOpenAi !== null && (
+          <p
+            className={`text-[10px] mt-1 ${usedOpenAi ? "text-emerald-400/80" : "text-amber-300/80"}`}
+          >
+            {usedOpenAi
+              ? "OpenAI (gpt-4o-mini) ishlatilmoqda."
+              : "OpenAI kaliti yo‘q — cheklangan rejim."}
+          </p>
+        )}
       </header>
 
       <div className="flex-1 overflow-y-auto no-scrollbar space-y-3 pb-4">
@@ -122,6 +218,14 @@ export default function ClientChatPage() {
                     ))}
                   </ul>
                 )}
+                {readyToMatch && lastAi.questions.length === 0 && requestId && (
+                  <PrimaryButton
+                    className="!py-2 !text-xs w-full mt-2"
+                    onClick={() => void quickToWorkers()}
+                  >
+                    Ustalarni ko‘rish (tezkor)
+                  </PrimaryButton>
+                )}
                 <div className="flex flex-wrap gap-1 pt-1">
                   {lastAi.tags.map((t) => (
                     <span
@@ -140,16 +244,55 @@ export default function ClientChatPage() {
       </div>
 
       <GlassCard className="p-3 mb-3 space-y-2">
+        <input
+          ref={fileImgRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={onPickImage}
+        />
+        {pendingImagePath && (
+          <p className="text-[11px] text-cyan-300/90">
+            Rasm tanlandi — yuborishda AI ko‘radi.{" "}
+            <button
+              type="button"
+              className="underline text-white/70"
+              onClick={() => setPendingImagePath(null)}
+            >
+              Bekor
+            </button>
+          </p>
+        )}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-xs shrink-0"
+            onClick={() => fileImgRef.current?.click()}
+          >
+            Rasm
+          </button>
+          <button
+            type="button"
+            className={`rounded-xl border px-3 py-2 text-xs shrink-0 ${
+              recording
+                ? "bg-red-500/25 border-red-400/50 text-red-200"
+                : "bg-white/10 border-white/15"
+            }`}
+            onClick={() => void (recording ? stopRecording() : startRecording())}
+          >
+            {recording ? "To‘xtatish" : "Ovoz"}
+          </button>
+        </div>
         <textarea
           className="w-full min-h-[88px] rounded-xl bg-black/35 border border-white/10 px-3 py-2 text-sm outline-none focus:border-cyan-400/40 resize-none"
-          placeholder="Masalan: Oshxonamda oq suv oqib chiqyapti, shoshilinch…"
+          placeholder="Masalan: Oshxonamda rozetka isitadi, shoshilinch…"
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
         <div className="flex gap-2">
           <PrimaryButton
             className="flex-1"
-            disabled={loading}
+            disabled={loading || (!text.trim() && !pendingImagePath)}
             onClick={send}
           >
             {loading ? "Kutilmoqda…" : "Yuborish"}
