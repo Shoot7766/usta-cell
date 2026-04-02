@@ -106,7 +106,13 @@ export function scoreWorkers(
     if (w.avg_response_seconds <= 600) badges.push("fast_response");
     return { ...w, score, badges };
   });
-  const sorted = [...withParts].sort((a, b) => b.score - a.score);
+  const sorted = [...withParts].sort((a, b) => {
+    const ds = b.score - a.score;
+    if (Math.abs(ds) > 1e-5) return ds;
+    const dr = Number(b.rating_avg) - Number(a.rating_avg);
+    if (Math.abs(dr) > 1e-5) return dr;
+    return (b.rating_count ?? 0) - (a.rating_count ?? 0);
+  });
   if (sorted[0]) {
     sorted[0].badges = asBadges(
       Array.from(new Set([...sorted[0].badges, "top_worker"]))

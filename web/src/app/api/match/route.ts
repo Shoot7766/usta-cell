@@ -3,6 +3,11 @@ import { z } from "zod";
 import { requireSession, requireRole } from "@/lib/api-auth";
 import { getServiceSupabase } from "@/lib/supabase/admin";
 import { attachDistance, scoreWorkers } from "@/lib/matching";
+import {
+  buildRequestServiceBlob,
+  workerMatchesServiceBlob,
+  requestEligibleForMatchFlow,
+} from "@/lib/service-match";
 
 const Q = z.object({ requestId: z.string().uuid() });
 
@@ -25,8 +30,11 @@ export async function GET(req: NextRequest) {
   if (!r || r.client_id !== ctx.userId) {
     return NextResponse.json({ error: "So'rov topilmadi" }, { status: 404 });
   }
-  if (r.status !== "submitted" && r.status !== "matched") {
-    return NextResponse.json({ error: "So'rov yuborilmagan" }, { status: 400 });
+  if (!requestEligibleForMatchFlow(r as { status: string; summary?: string | null; category?: string | null })) {
+    return NextResponse.json(
+      { error: "Avval chatda muammoni qisqacha yozing (AI xulosa bersin)" },
+      { status: 400 }
+    );
   }
   const { data: profiles } = await sb
     .from("worker_profiles")
@@ -63,12 +71,14 @@ export async function GET(req: NextRequest) {
       rating_count: w.rating_count as number,
       subscription_tier: w.subscription_tier as "free" | "pro",
     })) ?? [];
-  const cat = (r.category as string) || "";
-  const filtered = rows.filter((w) => {
-    if (!cat) return true;
-    const needle = cat.slice(0, 6).toLowerCase();
-    return w.services.some((s) => s.toLowerCase().includes(needle));
+
+  const blob = buildRequestServiceBlob({
+    category: r.category as string | null,
+    summary: r.summary as string | null,
+    tags: r.tags as string[] | null,
+    structured: r.structured,
   });
+  const filtered = rows.filter((w) => workerMatchesServiceBlob(w.services, blob));
   const list = filtered.length ? filtered : rows;
   const withDist = attachDistance(
     list,

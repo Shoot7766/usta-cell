@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireSession, requireRole } from "@/lib/api-auth";
 import { getServiceSupabase } from "@/lib/supabase/admin";
 import { computeCommission, appendOrderEvent } from "@/lib/order-lifecycle";
+import { notifyWorkerNewOrder } from "@/lib/telegram-notify";
+import { requestEligibleForMatchFlow } from "@/lib/service-match";
 
 const Body = z.object({
   requestId: z.string().uuid(),
@@ -61,7 +63,7 @@ export async function POST(req: NextRequest) {
   if (!r || r.client_id !== ctx.userId) {
     return NextResponse.json({ error: "So'rov topilmadi" }, { status: 404 });
   }
-  if (r.status !== "submitted" && r.status !== "matched") {
+  if (!requestEligibleForMatchFlow(r as { status: string; summary?: string | null; category?: string | null })) {
     return NextResponse.json({ error: "So'rov holati mos emas" }, { status: 400 });
   }
   const { data: wu } = await sb
@@ -109,6 +111,30 @@ export async function POST(req: NextRequest) {
     .update({ status: "matched", updated_at: new Date().toISOString() })
     .eq("id", body.requestId);
   await appendOrderEvent(ord.id as string, "created", {});
+
+  const summaryText = String((r.summary as string) || "").trim() || "Yangi buyurtma";
+  const { data: wuser } = await sb
+    .from("users")
+    .select("telegram_id")
+    .eq("id", body.workerId)
+    .maybeSingle();
+  const tid = wuser?.telegram_id;
+  const chatId =
+    typeof tid === "bigint"
+      ? Number(tid)
+      : typeof tid === "number"
+        ? tid
+        : typeof tid === "string"
+          ? parseInt(tid, 10)
+          : NaN;
+  if (Number.isFinite(chatId) && chatId > 0) {
+    void notifyWorkerNewOrder({
+      workerTelegramId: chatId,
+      orderId: ord.id as string,
+      summary: summaryText,
+    });
+  }
+
   return NextResponse.json({
     orderId: ord.id,
     commission_cents: commission,

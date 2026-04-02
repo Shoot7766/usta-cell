@@ -13,10 +13,11 @@ export const FREE_TIER_DAILY_REQUEST_CAP = 5;
 export const PRO_SUBSCRIPTION_CENTS_MONTH = 99000;
 export const ARRIVAL_DEADLINE_MINUTES = 45;
 
+/** Reyting va mos xizmat ustuvor (masofa ikkinchi o‘rinda). */
 export const MATCH_WEIGHTS = {
-  distance: 0.4,
-  rating: 0.25,
-  responseSpeed: 0.15,
-  availability: 0.1,
-  priceFit: 0.1,
+  distance: 0.22,
+  rating: 0.42,
+  responseSpeed: 0.14,
+  availability: 0.08,
+  priceFit: 0.14,
 } as const;

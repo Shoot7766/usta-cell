@@ -161,8 +161,8 @@ function WorkersPageContent() {
       <TwaShell />
       <h1 className="text-lg font-bold gradient-text mb-1">Ustalar</h1>
       <p className="text-xs text-white/50 mb-3">
-        Ustani tanlang — narx va vaqt avtomatik hisoblanadi (so‘rov va usta
-        diapazoni bo‘yicha).
+        Reyting va mos xizmat ustuvor tartibda. Telefonda narxni kelishib, buyurtmada
+        yozib qo‘ying — usta roziligini tasdiqlaydi.
       </p>
       {sorted.map((w) => (
         <WorkerSwipeCard

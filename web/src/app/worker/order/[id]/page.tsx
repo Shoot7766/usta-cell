@@ -19,6 +19,9 @@ export default function WorkerOrderPage() {
   const [paymentStatus, setPaymentStatus] = useState("pending");
   const [payLoading, setPayLoading] = useState(false);
   const [payoutReleased, setPayoutReleased] = useState(false);
+  const [reqLine, setReqLine] = useState("");
+  const [workerPriceOk, setWorkerPriceOk] = useState(false);
+  const [confirmPriceBusy, setConfirmPriceBusy] = useState(false);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -45,7 +48,9 @@ export default function WorkerOrderPage() {
         payment_method?: string;
         payment_status?: string;
         payout_released?: boolean;
+        requests?: { summary?: string | null; category?: string | null } | null;
       };
+      events: { event_type: string }[];
     }>(`/api/orders/${id}`);
     if (r.ok && r.data) {
       setStatus(r.data.order.status);
@@ -58,6 +63,15 @@ export default function WorkerOrderPage() {
       if (typeof r.data.order.payout_released === "boolean") {
         setPayoutReleased(r.data.order.payout_released);
       }
+      const rq = r.data.order.requests;
+      if (rq && (rq.summary || rq.category)) {
+        setReqLine([rq.category, rq.summary].filter(Boolean).join(" — "));
+      } else {
+        setReqLine("");
+      }
+      setWorkerPriceOk(
+        r.data.events.some((e) => e.event_type === "worker_confirmed_agreed_price")
+      );
     }
   };
 
@@ -117,10 +131,45 @@ export default function WorkerOrderPage() {
     load();
   };
 
+  const confirmAgreedPrice = async () => {
+    setConfirmPriceBusy(true);
+    const r = await apiJson(`/api/orders/${id}/agreed-price`, {
+      method: "POST",
+      body: JSON.stringify({ confirm: true }),
+    });
+    setConfirmPriceBusy(false);
+    if (r.ok) load();
+    else if (r.error) window.alert(r.error);
+  };
+
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28 space-y-3">
       <TwaShell />
       <h1 className="text-lg font-bold gradient-text">Buyurtma</h1>
+      {reqLine && (
+        <GlassCard className="p-4 space-y-2 border border-white/10">
+          <p className="text-[11px] uppercase text-white/40">Kelishuv</p>
+          <p className="text-sm text-white/85">{reqLine}</p>
+          <p className="text-xs text-white/60">
+            Ko‘rsatilgan narx:{" "}
+            <strong className="text-neon">{priceCents.toLocaleString()} so‘m</strong>
+          </p>
+          {workerPriceOk ? (
+            <p className="text-xs text-emerald-300/90">Siz narxdan rozisiz (yozuv qayd etildi).</p>
+          ) : (
+            ["new", "accepted"].includes(status) &&
+            priceCents > 0 && (
+              <PrimaryButton
+                className="!py-2 !text-xs w-full"
+                disabled={confirmPriceBusy}
+                onClick={() => void confirmAgreedPrice()}
+              >
+                {confirmPriceBusy ? "…" : "Telefonda kelishilgan narxdan roziman"}
+              </PrimaryButton>
+            )
+          )}
+        </GlassCard>
+      )}
       <GlassCard className="p-4 space-y-2">
         <p className="text-sm text-white/80">Holat: {status}</p>
         <p className="text-xs text-white/55">

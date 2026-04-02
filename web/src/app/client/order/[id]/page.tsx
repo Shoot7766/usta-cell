@@ -24,6 +24,7 @@ type OrderPayload = {
   payment_method?: string;
   payment_status?: string;
   payout_released?: boolean;
+  requests?: { summary?: string | null; category?: string | null } | null;
 };
 
 export default function ClientOrderPage() {
@@ -40,6 +41,10 @@ export default function ClientOrderPage() {
   const [paySaving, setPaySaving] = useState(false);
   const [payoutReleased, setPayoutReleased] = useState(false);
   const [payoutLoading, setPayoutLoading] = useState(false);
+  const [reqLine, setReqLine] = useState("");
+  const [priceEdit, setPriceEdit] = useState("");
+  const [priceSaving, setPriceSaving] = useState(false);
+  const [workerConfirmedPrice, setWorkerConfirmedPrice] = useState(false);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -60,10 +65,19 @@ export default function ClientOrderPage() {
   const applyOrder = (o: OrderPayload | null | undefined) => {
     if (!o) return;
     if (o.status) setStatus(o.status);
-    if (typeof o.price_cents === "number") setPriceCents(o.price_cents);
+    if (typeof o.price_cents === "number") {
+      setPriceCents(o.price_cents);
+      setPriceEdit(String(o.price_cents));
+    }
     if (o.payment_method) setPaymentMethod(o.payment_method);
     if (o.payment_status) setPaymentStatus(o.payment_status);
     if (typeof o.payout_released === "boolean") setPayoutReleased(o.payout_released);
+    const rq = o.requests;
+    if (rq && (rq.summary || rq.category)) {
+      setReqLine(
+        [rq.category, rq.summary].filter(Boolean).join(" — ")
+      );
+    }
   };
 
   const load = async () => {
@@ -74,6 +88,9 @@ export default function ClientOrderPage() {
     if (r.ok && r.data) {
       applyOrder(r.data.order);
       setEvents(r.data.events);
+      setWorkerConfirmedPrice(
+        r.data.events.some((e) => e.event_type === "worker_confirmed_agreed_price")
+      );
     }
   };
 
@@ -88,7 +105,12 @@ export default function ClientOrderPage() {
           events?: { event_type: string; created_at: string }[];
         };
         applyOrder(msg?.order);
-        if (msg?.events) setEvents(msg.events);
+        if (msg?.events) {
+          setEvents(msg.events);
+          setWorkerConfirmedPrice(
+            msg.events.some((e) => e.event_type === "worker_confirmed_agreed_price")
+          );
+        }
       } catch {
         /* */
       }
@@ -124,6 +146,24 @@ export default function ClientOrderPage() {
       body: JSON.stringify({ orderId: id, reason }),
     });
     await load();
+  };
+
+  const saveAgreedPrice = async () => {
+    const n = parseInt(priceEdit.replace(/\s/g, ""), 10);
+    if (!Number.isFinite(n) || n < 1) {
+      window.alert("Narxni to‘g‘ri kiriting (butun so‘m).");
+      return;
+    }
+    setPriceSaving(true);
+    const r = await apiJson(`/api/orders/${id}/agreed-price`, {
+      method: "PATCH",
+      body: JSON.stringify({ priceCents: n }),
+    });
+    setPriceSaving(false);
+    if (r.ok) {
+      hapticSuccess();
+      load();
+    } else if (r.error) window.alert(r.error);
   };
 
   const releasePayout = async () => {
@@ -177,6 +217,50 @@ export default function ClientOrderPage() {
         </div>
         <p className="text-xs text-white/45 mt-3">Holat: {status}</p>
       </GlassCard>
+
+      {reqLine && (
+        <GlassCard className="p-4 mb-4 space-y-2 border border-white/10">
+          <p className="text-[11px] uppercase text-white/40">Qisqa kelishuv</p>
+          <p className="text-sm text-white/85">{reqLine}</p>
+          <p className="text-xs text-white/55">
+            Kelishilgan narx:{" "}
+            <span className="text-neon font-semibold">
+              {priceCents.toLocaleString()} so‘m
+            </span>
+          </p>
+          <p className="text-[10px] text-white/40 leading-relaxed">
+            Tomonlar telefonda kelishgan. Usta «Narxdan roziman» tugmasini bosgach, bu narx
+            yakuniy hisoblanadi. To‘lov ish bitgach hamyon orqali.
+          </p>
+          {workerConfirmedPrice && (
+            <p className="text-xs text-emerald-300/90">Usta kelishilgan narxdan rozi.</p>
+          )}
+        </GlassCard>
+      )}
+
+      {["new", "accepted"].includes(status) && (
+        <GlassCard className="p-4 mb-4 space-y-2">
+          <p className="text-xs text-white/45 uppercase">Narxni yangilash</p>
+          <p className="text-[11px] text-white/50">
+            Telefonda kelishgach, bu yerga yozing (so‘m, butun son).
+          </p>
+          <input
+            type="text"
+            inputMode="numeric"
+            className="w-full rounded-xl bg-black/35 border border-white/10 px-3 py-2 text-sm outline-none focus:border-cyan-400/40"
+            value={priceEdit}
+            onChange={(e) => setPriceEdit(e.target.value.replace(/[^\d]/g, ""))}
+            placeholder="Masalan: 350000"
+          />
+          <PrimaryButton
+            className="!py-2 !text-xs"
+            disabled={priceSaving}
+            onClick={() => void saveAgreedPrice()}
+          >
+            {priceSaving ? "Saqlanmoqda…" : "Kelishilgan narxni saqlash"}
+          </PrimaryButton>
+        </GlassCard>
+      )}
 
       <GlassCard className="p-4 mb-4 space-y-2">
         <p className="text-xs text-white/45 uppercase">To‘lov</p>
