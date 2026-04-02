@@ -22,13 +22,6 @@ type Me = {
   };
 };
 
-function roleLabelUz(role: string): string {
-  if (role === "client") return "mijoz";
-  if (role === "worker") return "usta";
-  if (role === "admin") return "admin";
-  return role;
-}
-
 export default function OnboardingPage() {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
@@ -95,6 +88,13 @@ export default function OnboardingPage() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!me) return;
+    if (me.user.role === "worker" && !me.user.workerProfileOk) {
+      void router.replace("/onboarding/worker");
+    }
+  }, [me, router]);
+
   const saveBase = async () => {
     await apiJson("/api/user/profile", {
       method: "PATCH",
@@ -134,7 +134,13 @@ export default function OnboardingPage() {
   }
 
   const role = me.user.role;
-  const needWorker = role === "worker" && !me.user.workerProfileOk;
+  if (role === "worker" && !me.user.workerProfileOk) {
+    return (
+      <div className="min-h-dvh p-5 flex items-center justify-center text-white/60">
+        Usta profili ochilmoqda…
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28 safe-pb">
@@ -147,10 +153,6 @@ export default function OnboardingPage() {
 
         <GlassCard className="p-4 mb-4 space-y-3">
           <p className="text-xs text-white/45 uppercase tracking-wider">Rol</p>
-          <p className="text-sm text-white/80">
-            Joriy:{" "}
-            <span className="text-neon font-semibold">{roleLabelUz(role)}</span>
-          </p>
           <div className="flex gap-2">
             <button
               type="button"
@@ -158,7 +160,7 @@ export default function OnboardingPage() {
               className="flex-1 rounded-xl bg-white/5 border border-white/10 py-2 text-sm disabled:opacity-40"
               onClick={() => void switchRole("client")}
             >
-              Mijozga o‘tish
+              Mijoz
             </button>
             <button
               type="button"
@@ -166,7 +168,7 @@ export default function OnboardingPage() {
               className="flex-1 rounded-xl bg-white/5 border border-white/10 py-2 text-sm disabled:opacity-40"
               onClick={() => void switchRole("worker")}
             >
-              Ustaga o‘tish
+              Usta
             </button>
           </div>
         </GlassCard>
@@ -193,18 +195,6 @@ export default function OnboardingPage() {
             O‘zgarishlarni saqlash
           </PrimaryButton>
         </GlassCard>
-
-        {needWorker && (
-          <GlassCard className="p-4 mb-4 space-y-3">
-            <p className="text-sm text-white/70">
-              Usta profili alohida sahifada to‘liq to‘ldiriladi: xizmatlar, joylashuv,
-              narx oralig‘i.
-            </p>
-            <PrimaryButton onClick={() => router.push("/onboarding/worker")}>
-              Usta profilini to‘ldirish
-            </PrimaryButton>
-          </GlassCard>
-        )}
 
         {me.user.profileCompleted &&
           (role !== "worker" || me.user.workerProfileOk) && (
