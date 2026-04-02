@@ -70,8 +70,22 @@ export async function GET(
     .select("*")
     .eq("order_id", id)
     .order("created_at", { ascending: true });
+
+  let clientIssueImageUrl: string | null = null;
+  const imgPath =
+    typeof o.client_issue_image_path === "string" ? o.client_issue_image_path.trim() : "";
+  if (imgPath) {
+    const { data: signed } = await sb.storage.from("usta_chat").createSignedUrl(imgPath, 7200);
+    clientIssueImageUrl = signed?.signedUrl ?? null;
+  }
+
   return NextResponse.json({
-    order: { ...o, client: c, worker: workerOut },
+    order: {
+      ...o,
+      client: c,
+      worker: workerOut,
+      client_issue_image_url: clientIssueImageUrl,
+    },
     events: events ?? [],
   });
 }

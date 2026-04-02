@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { loadWebApp } from "@/lib/twa";
 import { apiJson } from "@/lib/api-client";
@@ -36,7 +35,6 @@ const fadeUp = {
 };
 
 export default function ClientProfilePage() {
-  const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [tgAvatarUrl, setTgAvatarUrl] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -113,14 +111,14 @@ export default function ClientProfilePage() {
         aria-hidden
       />
 
-      <header className="relative mb-6 pt-2 flex items-start gap-3">
-        <ProfileExitDoor className="shrink-0 mt-0.5" />
+      <header className="relative mb-6 pt-2 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
             Hisobingiz
           </p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight gradient-text">Profil</h1>
         </div>
+        <ProfileExitDoor className="shrink-0 mt-0.5" />
       </header>
 
       {!me && (
@@ -195,11 +193,6 @@ export default function ClientProfilePage() {
             </GlassCard>
           </motion.div>
 
-          <motion.div variants={fadeUp}>
-            <PrimaryButton onClick={() => router.push("/onboarding")}>
-              Qo‘shimcha sozlamalar (rol)
-            </PrimaryButton>
-          </motion.div>
         </motion.div>
       )}
     </div>

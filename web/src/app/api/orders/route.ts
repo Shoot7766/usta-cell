@@ -71,6 +71,11 @@ export async function POST(req: NextRequest) {
   const etaMinutes =
     body.etaMinutes ?? defaultEtaMinutes(r.urgency as string | null | undefined);
 
+  const clientImgPath =
+    typeof r.last_client_image_path === "string" && r.last_client_image_path.trim()
+      ? r.last_client_image_path.trim()
+      : null;
+
   const { data: ord, error } = await sb
     .from("orders")
     .insert({
@@ -81,6 +86,7 @@ export async function POST(req: NextRequest) {
       price_cents: priceCents,
       eta_minutes: etaMinutes,
       commission_cents: 0,
+      client_issue_image_path: clientImgPath,
     })
     .select("id, contract_number")
     .single();

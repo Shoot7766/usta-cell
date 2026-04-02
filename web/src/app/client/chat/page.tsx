@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadWebApp } from "@/lib/twa";
 import { apiJson, apiForm } from "@/lib/api-client";
@@ -37,6 +38,25 @@ type AiRes = {
     reasoning?: string;
     tags: string[];
   };
+};
+
+type MatchWorker = {
+  user_id: string;
+  display_name: string | null;
+  rating_avg: number;
+  rating_count?: number;
+  distance_km: number | null;
+  score: number;
+  badges: string[];
+  price_min_cents: number;
+  price_max_cents: number;
+  portfolio_preview?: { image_url: string; caption?: string | null }[];
+};
+
+const badgeUz: Record<string, string> = {
+  top_worker: "Top usta",
+  fast_response: "Tez javob",
+  nearby: "Yaqin",
 };
 
 const DRAFT_STORAGE = "usta_chat_draft_id";
@@ -79,6 +99,9 @@ export default function ClientChatPage() {
   const [loading, setLoading] = useState(false);
   const [hydrating, setHydrating] = useState(true);
   const [pendingImagePath, setPendingImagePath] = useState<string | null>(null);
+  const [matchWorkers, setMatchWorkers] = useState<MatchWorker[]>([]);
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [orderingWorkerId, setOrderingWorkerId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const fileImgRef = useRef<HTMLInputElement>(null);
 
@@ -147,7 +170,37 @@ export default function ClientChatPage() {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [thread, lastAi, loading, pendingImagePath, hydrating]);
+  }, [
+    thread,
+    lastAi,
+    loading,
+    pendingImagePath,
+    hydrating,
+    matchWorkers,
+    matchLoading,
+    orderingWorkerId,
+  ]);
+
+  const loadMatchWorkers = useCallback(async (rid: string) => {
+    setMatchLoading(true);
+    const r = await apiJson<{ workers: MatchWorker[] }>(
+      `/api/match?requestId=${encodeURIComponent(rid)}`
+    );
+    setMatchLoading(false);
+    if (r.ok && r.data?.workers) {
+      setMatchWorkers(r.data.workers);
+    } else {
+      setMatchWorkers([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!readyToMatch || !requestId || !lastAi || lastAi.questions.length > 0) {
+      setMatchWorkers([]);
+      return;
+    }
+    void loadMatchWorkers(requestId);
+  }, [readyToMatch, requestId, lastAi, loadMatchWorkers]);
 
   const uploadImageFile = async (file: File) => {
     const fd = new FormData();
@@ -192,9 +245,26 @@ export default function ClientChatPage() {
       await loadDraft(rid);
       if (canMatch && rid) {
         hapticSuccess();
-        router.replace(`/client/workers?requestId=${encodeURIComponent(rid)}`);
+        void loadMatchWorkers(rid);
       }
     }
+  };
+
+  const pickWorker = async (workerId: string) => {
+    if (!requestId || orderingWorkerId) return;
+    setOrderingWorkerId(workerId);
+    const r = await apiJson<{ orderId: string }>("/api/orders", {
+      method: "POST",
+      body: JSON.stringify({ requestId, workerId }),
+    });
+    setOrderingWorkerId(null);
+    if (r.ok && r.data?.orderId) {
+      hapticSuccess();
+      router.push(`/client/order/${r.data.orderId}`);
+      return;
+    }
+    const WebApp = await loadWebApp();
+    WebApp.showAlert(r.error || "Buyurtma yaratilmadi");
   };
 
   return (
@@ -203,8 +273,7 @@ export default function ClientChatPage() {
       <header className="mb-3">
         <h1 className="text-lg font-bold gradient-text">Dispetcher AI</h1>
         <p className="text-xs text-white/50">
-          Muammoingizni yozing — tayyor bo‘lganda mos ustalar reyting bo‘yicha ro‘yxat ochiladi.
-          Suhbat saqlanadi.
+          Muammoingizni yozing — tayyor bo‘lganda mos ustalar shu yerga chiqadi. Suhbat saqlanadi.
         </p>
         {usedOpenAi !== null && (
           <p
@@ -261,11 +330,6 @@ export default function ClientChatPage() {
                   ))}
                 </ul>
               )}
-              {readyToMatch && lastAi.questions.length === 0 && requestId && (
-                <p className="text-[11px] text-cyan-200/80 pt-1">
-                  Ustalar ro‘yxati ochilmoqda…
-                </p>
-              )}
               <div className="flex flex-wrap gap-1 pt-1">
                 {lastAi.tags.map((t) => (
                   <span
@@ -277,6 +341,81 @@ export default function ClientChatPage() {
                 ))}
               </div>
             </GlassCard>
+          </motion.div>
+        )}
+        {readyToMatch && requestId && lastAi && lastAi.questions.length === 0 && (
+          <motion.div
+            key="match-workers"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-2"
+          >
+            <p className="text-xs font-semibold text-white/70">Mos ustalar</p>
+            {matchLoading && <p className="text-xs text-white/45">Qidirilmoqda…</p>}
+            {!matchLoading && matchWorkers.length === 0 && (
+              <p className="text-xs text-white/45">
+                Hozircha mos usta topilmadi. Keyinroq qayta urinib ko‘ring yoki boshqa joyda
+                qidiring.
+              </p>
+            )}
+            {!matchLoading &&
+              matchWorkers.map((w) => (
+                <GlassCard key={w.user_id} className="p-3 space-y-2 border border-white/10">
+                  <div className="flex justify-between gap-2 items-start">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white truncate">
+                        {w.display_name || "Usta"}
+                      </p>
+                      <p className="text-[11px] text-white/45">
+                        ⭐ {w.rating_avg.toFixed(2)} · {w.rating_count ?? 0} sharh ·{" "}
+                        {w.distance_km != null ? `${w.distance_km.toFixed(1)} km` : "masofa ?"} ·{" "}
+                        {Math.round(w.score * 100)} ball
+                      </p>
+                    </div>
+                  </div>
+                  {w.badges.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {w.badges.map((b) => (
+                        <span
+                          key={b}
+                          className="text-[9px] px-1.5 py-0.5 rounded-full bg-fuchsia-500/15 text-fuchsia-100 border border-fuchsia-400/15"
+                        >
+                          {badgeUz[b] ?? b}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {w.portfolio_preview && w.portfolio_preview.length > 0 && (
+                    <div className="flex gap-1 overflow-x-auto pb-1">
+                      {w.portfolio_preview.map((p, i) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={`${p.image_url}-${i}`}
+                          src={p.image_url}
+                          alt=""
+                          className="h-12 w-12 rounded-lg object-cover border border-white/10 shrink-0"
+                          referrerPolicy="no-referrer"
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <PrimaryButton
+                    className="w-full !py-2 !text-xs"
+                    disabled={orderingWorkerId !== null}
+                    onClick={() => void pickWorker(w.user_id)}
+                  >
+                    {orderingWorkerId === w.user_id
+                      ? "Buyurtma yaratilmoqda…"
+                      : "Tanlash"}
+                  </PrimaryButton>
+                  <Link
+                    href={`/client/worker/${w.user_id}?requestId=${encodeURIComponent(requestId)}`}
+                    className="block text-center text-[11px] text-cyan-300/90 underline"
+                  >
+                    Portfolio (izohlar bilan)
+                  </Link>
+                </GlassCard>
+              ))}
           </motion.div>
         )}
         <div ref={endRef} />

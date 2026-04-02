@@ -40,6 +40,7 @@ type OrderPayload = {
   payment_method?: string;
   payment_status?: string;
   payout_released?: boolean;
+  client_issue_image_url?: string | null;
   worker?: { display_name?: string | null } | null;
   requests?: {
     summary?: string | null;
@@ -76,6 +77,7 @@ export default function ClientOrderPage() {
   const [addrLineOrder, setAddrLineOrder] = useState("");
   const [locBusy, setLocBusy] = useState(false);
   const [contractNumber, setContractNumber] = useState<string | null>(null);
+  const [clientIssueImageUrl, setClientIssueImageUrl] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -117,6 +119,10 @@ export default function ClientOrderPage() {
     if (typeof o.contract_number === "string" && o.contract_number.trim()) {
       setContractNumber(o.contract_number.trim());
     }
+    const ciu = o.client_issue_image_url;
+    setClientIssueImageUrl(
+      typeof ciu === "string" && ciu.startsWith("http") ? ciu : null
+    );
     if (
       rq &&
       typeof rq.client_lat === "number" &&
@@ -305,6 +311,19 @@ export default function ClientOrderPage() {
         </div>
         <p className="text-xs text-white/45 mt-3">Holat: {status}</p>
       </GlassCard>
+
+      {clientIssueImageUrl && (
+        <GlassCard className="p-4 mb-4 space-y-2 border border-white/10">
+          <p className="text-[11px] uppercase text-white/40">Siz yuborgan rasm</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={clientIssueImageUrl}
+            alt=""
+            className="w-full max-h-64 rounded-xl object-contain border border-white/10 bg-black/30"
+            referrerPolicy="no-referrer"
+          />
+        </GlassCard>
+      )}
 
       {reqLine && (
         <GlassCard className="p-4 mb-4 space-y-2 border border-white/10">

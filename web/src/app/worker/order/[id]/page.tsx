@@ -23,6 +23,7 @@ export default function WorkerOrderPage() {
   const [workerPriceOk, setWorkerPriceOk] = useState(false);
   const [confirmPriceBusy, setConfirmPriceBusy] = useState(false);
   const [contractNumber, setContractNumber] = useState<string | null>(null);
+  const [clientIssueImageUrl, setClientIssueImageUrl] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -50,6 +51,7 @@ export default function WorkerOrderPage() {
         payment_status?: string;
         payout_released?: boolean;
         contract_number?: string | null;
+        client_issue_image_url?: string | null;
         requests?: { summary?: string | null; category?: string | null } | null;
       };
       events: { event_type: string }[];
@@ -75,6 +77,10 @@ export default function WorkerOrderPage() {
       }
       setWorkerPriceOk(
         r.data.events.some((e) => e.event_type === "worker_confirmed_agreed_price")
+      );
+      const imgUrl = r.data.order.client_issue_image_url;
+      setClientIssueImageUrl(
+        typeof imgUrl === "string" && imgUrl.startsWith("http") ? imgUrl : null
       );
     }
   };
@@ -158,6 +164,18 @@ export default function WorkerOrderPage() {
         <p className="text-[11px] text-cyan-200/90 font-mono mb-2">
           Shartnoma: <span className="text-white">{contractNumber}</span>
         </p>
+      )}
+      {clientIssueImageUrl && (
+        <GlassCard className="p-4 space-y-2 border border-cyan-400/20">
+          <p className="text-[11px] uppercase text-white/40">Mijoz yuborgan rasm</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={clientIssueImageUrl}
+            alt="Mijoz"
+            className="w-full max-h-64 rounded-xl object-contain border border-white/10 bg-black/30"
+            referrerPolicy="no-referrer"
+          />
+        </GlassCard>
       )}
       {reqLine && (
         <GlassCard className="p-4 space-y-2 border border-white/10">

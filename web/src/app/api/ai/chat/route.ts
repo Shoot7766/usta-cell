@@ -5,7 +5,7 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { sanitizeText } from "@/lib/sanitize";
 import { runDispatcherTurn } from "@/lib/openai/dispatcher";
 import { getServiceSupabase } from "@/lib/supabase/admin";
-import { chatImagePathToDataUrl } from "@/lib/chat-image";
+import { chatImagePathToDataUrl, safeChatImageStoragePath } from "@/lib/chat-image";
 
 const Body = z
   .object({
@@ -99,6 +99,7 @@ export async function POST(req: NextRequest) {
     price_min_cents: ai.price_min_cents,
     price_max_cents: ai.price_max_cents,
   };
+  const persistImagePath = safeChatImageStoragePath(imagePath, ctx.userId);
   await sb
     .from("requests")
     .update({
@@ -110,6 +111,7 @@ export async function POST(req: NextRequest) {
       tags: ai.tags,
       price_min_cents: ai.price_min_cents ?? null,
       price_max_cents: ai.price_max_cents ?? null,
+      ...(persistImagePath ? { last_client_image_path: persistImagePath } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", requestId);

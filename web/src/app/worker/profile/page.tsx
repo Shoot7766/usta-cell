@@ -312,8 +312,8 @@ export default function WorkerProfilePage() {
     <div className="min-h-dvh px-4 pt-4 pb-28">
       <TwaShell />
       <div className="flex items-center gap-3 mb-3">
-        <ProfileExitDoor className="shrink-0" />
         <h1 className="text-lg font-bold gradient-text flex-1 min-w-0">Usta profili</h1>
+        <ProfileExitDoor className="shrink-0" />
       </div>
 
       <GlassCard className="p-4 mb-3 space-y-3">

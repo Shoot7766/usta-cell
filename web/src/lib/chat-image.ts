@@ -1,5 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+/** Faqat o‘sha foydalanuvchi chat papkasidagi yo‘l. */
+export function safeChatImageStoragePath(
+  imagePath: string | undefined,
+  userId: string
+): string | null {
+  if (!imagePath?.trim()) return null;
+  const p = imagePath.replace(/^\/+/, "").trim();
+  if (p.includes("..") || p.length > 512) return null;
+  if (!p.startsWith(`${userId}/`)) return null;
+  return p;
+}
+
 export async function chatImagePathToDataUrl(
   sb: SupabaseClient,
   imagePath: string,
