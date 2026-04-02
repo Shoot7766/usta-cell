@@ -152,22 +152,42 @@ export default function OnboardingPage() {
         <GlassCard className="p-4 mb-4 space-y-3">
           <p className="text-xs text-white/45 uppercase tracking-wider">Rol</p>
           <div className="flex gap-2">
-            <button
+            <motion.button
               type="button"
               disabled={roleLoading}
-              className="flex-1 rounded-xl bg-white/5 border border-white/10 py-2 text-sm disabled:opacity-40"
+              initial={false}
+              animate={{
+                opacity: roleLoading ? 0.45 : role === "client" ? 1 : 0.38,
+                scale: role === "client" ? 1 : 0.96,
+              }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className={`flex-1 rounded-xl py-2.5 text-sm font-semibold border transition-colors duration-200 ${
+                role === "client"
+                  ? "border-cyan-400/45 bg-gradient-to-br from-cyan-500/25 to-fuchsia-500/10 text-white shadow-[0_0_24px_-10px_rgba(34,211,238,0.55)]"
+                  : "border-white/[0.07] bg-black/45 text-white/45"
+              }`}
               onClick={() => void switchRole("client")}
             >
               Mijoz
-            </button>
-            <button
+            </motion.button>
+            <motion.button
               type="button"
               disabled={roleLoading}
-              className="flex-1 rounded-xl bg-white/5 border border-white/10 py-2 text-sm disabled:opacity-40"
+              initial={false}
+              animate={{
+                opacity: roleLoading ? 0.45 : role === "worker" ? 1 : 0.38,
+                scale: role === "worker" ? 1 : 0.96,
+              }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className={`flex-1 rounded-xl py-2.5 text-sm font-semibold border transition-colors duration-200 ${
+                role === "worker"
+                  ? "border-fuchsia-400/45 bg-gradient-to-br from-fuchsia-500/25 to-cyan-500/10 text-white shadow-[0_0_24px_-10px_rgba(217,70,239,0.5)]"
+                  : "border-white/[0.07] bg-black/45 text-white/45"
+              }`}
               onClick={() => void switchRole("worker")}
             >
               Usta
-            </button>
+            </motion.button>
           </div>
         </GlassCard>
 
