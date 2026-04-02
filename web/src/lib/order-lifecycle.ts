@@ -151,20 +151,29 @@ export async function cancelOrderByClient(orderId: string, clientId: string) {
   if (o.status === "completed" || o.status === "canceled") {
     return { ok: false as const, error: "Holat bekor qilishga yaroqsiz" };
   }
+  const releaseToMarket = o.status === "pending_worker";
   let client_penalty_cents = 0;
-  if (o.status !== "new") {
+  if (o.status !== "new" && o.status !== "pending_worker") {
     client_penalty_cents = CLIENT_CANCEL_PENALTY_CENTS;
   }
+  const nowIso = new Date().toISOString();
   await sb
     .from("orders")
     .update({
       status: "canceled",
-      canceled_at: new Date().toISOString(),
+      canceled_at: nowIso,
       canceled_by: "client",
       client_penalty_cents,
       cancel_reason: "Mijoz bekor qildi",
+      updated_at: nowIso,
     })
     .eq("id", orderId);
+  if (releaseToMarket) {
+    await sb
+      .from("requests")
+      .update({ status: "submitted", updated_at: nowIso })
+      .eq("id", o.request_id as string);
+  }
   if (client_penalty_cents > 0) {
     await sb.from("transactions").insert({
       user_id: clientId,
@@ -191,14 +200,34 @@ export async function cancelOrderByWorker(orderId: string, workerId: string) {
   if (o.status === "completed" || o.status === "canceled") {
     return { ok: false as const, error: "Holat bekor qilishga yaroqsiz" };
   }
+  const now = new Date().toISOString();
+  if (o.status === "pending_worker") {
+    await sb
+      .from("orders")
+      .update({
+        status: "canceled",
+        canceled_at: now,
+        canceled_by: "worker",
+        cancel_reason: "Usta rad etdi (bozordan)",
+        updated_at: now,
+      })
+      .eq("id", orderId);
+    await sb
+      .from("requests")
+      .update({ status: "submitted", updated_at: now })
+      .eq("id", o.request_id as string);
+    await appendOrderEvent(orderId, "canceled_worker_market_reject", {});
+    return { ok: true as const };
+  }
   await sb
     .from("orders")
     .update({
       status: "canceled",
-      canceled_at: new Date().toISOString(),
+      canceled_at: now,
       canceled_by: "worker",
       worker_rating_delta: WORKER_CANCEL_RATING_DELTA,
       cancel_reason: "Usta bekor qildi",
+      updated_at: now,
     })
     .eq("id", orderId);
   const { data: wp } = await sb
@@ -226,6 +255,7 @@ const transitions: Record<
   OrderStatus,
   Partial<Record<OrderStatus, true>>
 > = {
+  pending_worker: { accepted: true, canceled: true },
   new: { accepted: true, canceled: true },
   accepted: { in_progress: true, canceled: true },
   in_progress: { completed: true, canceled: true },
@@ -253,7 +283,7 @@ export async function setOrderStatus(
   if (!canTransition(cur, next)) return { ok: false, error: "Noto'g'ri o'tish" };
   if (actor.role === "worker") {
     if (o.worker_id !== actor.userId) return { ok: false, error: "Ruxsat yo'q" };
-    if (next === "accepted" && cur === "new") {
+    if (next === "accepted" && (cur === "new" || cur === "pending_worker")) {
       /* ok */
     } else if (next === "in_progress" && cur === "accepted") {
       /* ok */
@@ -268,7 +298,11 @@ export async function setOrderStatus(
   } else if (actor.role !== "admin") {
     return { ok: false, error: "Ruxsat yo'q" };
   }
-  if (next === "accepted" && cur === "new" && actor.role === "worker") {
+  if (
+    next === "accepted" &&
+    (cur === "new" || cur === "pending_worker") &&
+    actor.role === "worker"
+  ) {
     const paid = await chargeWorkerOrderAccept(actor.userId, orderId);
     if (!paid.ok) return { ok: false, error: paid.error };
   }
@@ -281,6 +315,7 @@ export async function setOrderStatus(
       Date.now() + ARRIVAL_DEADLINE_MINUTES * 60 * 1000
     ).toISOString();
     patch.commission_cents = 0;
+    patch.worker_decision_deadline_at = null;
   }
   if (next === "in_progress") patch.work_started_at = now;
   if (next === "completed") patch.completed_at = now;
@@ -321,4 +356,66 @@ export async function setOrderStatus(
     })();
   }
   return { ok: true };
+}
+
+/** Bozor band qilish: muddat o‘tgach jarima, buyurtma bekor, so‘rov yana bozorda. */
+export async function applyPendingWorkerTimeouts(): Promise<number> {
+  const sb = getServiceSupabase();
+  const nowIso = new Date().toISOString();
+  const { data: rows } = await sb
+    .from("orders")
+    .select("id, worker_id, request_id")
+    .eq("status", "pending_worker")
+    .not("worker_decision_deadline_at", "is", null)
+    .lt("worker_decision_deadline_at", nowIso);
+
+  let n = 0;
+  for (const row of rows ?? []) {
+    const orderId = row.id as string;
+    const workerId = row.worker_id as string;
+    const requestId = row.request_id as string;
+
+    const { data: wp } = await sb
+      .from("worker_profiles")
+      .select("leads_balance_cents")
+      .eq("user_id", workerId)
+      .maybeSingle();
+    const bal = Math.max(0, (wp?.leads_balance_cents as number) ?? 0);
+    const fee = ORDER_ACCEPT_FEE_CENTS;
+    const deduct = Math.min(bal, fee);
+    const nextBal = bal - deduct;
+    const now = new Date().toISOString();
+
+    if (deduct > 0) {
+      await sb
+        .from("worker_profiles")
+        .update({ leads_balance_cents: nextBal, updated_at: now })
+        .eq("user_id", workerId);
+      await sb.from("transactions").insert({
+        user_id: workerId,
+        order_id: orderId,
+        type: "penalty_worker",
+        amount_cents: -deduct,
+        meta: { reason: "pending_worker_deadline", intended_cents: fee },
+      });
+    }
+
+    await sb
+      .from("orders")
+      .update({
+        status: "canceled",
+        canceled_at: now,
+        canceled_by: "system",
+        cancel_reason: "10 daqiqa ichida tasdiqlanmadi — jarima",
+        updated_at: now,
+      })
+      .eq("id", orderId);
+    await sb
+      .from("requests")
+      .update({ status: "submitted", updated_at: now })
+      .eq("id", requestId);
+    await appendOrderEvent(orderId, "pending_worker_timeout", { penalty_cents: deduct });
+    n += 1;
+  }
+  return n;
 }

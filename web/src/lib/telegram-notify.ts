@@ -55,6 +55,25 @@ export async function notifyWorkerNewOrder(opts: {
 }
 
 /** Usta buyurtmani qabul qilganda mijozga Telegram xabari. */
+/** Usta bozordan so‘rovni band qilganda mijozga. */
+export async function notifyClientMarketReserved(opts: {
+  clientTelegramId: number;
+  orderId: string;
+  workerName: string;
+  summary: string;
+}): Promise<void> {
+  const base = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
+  const link = base ? `${base}/client/order/${opts.orderId}` : "";
+  const lines = [
+    "📌 Usta so‘rovingizni band qildi.",
+    "10 daqiqa ichida u ilovada tasdiqlashi yoki rad etishi kerak.",
+    opts.workerName ? `Usta: ${opts.workerName}` : "",
+    opts.summary.trim() ? opts.summary.trim().slice(0, 220) : "",
+    link ? `Kuzatuv: ${link}` : "",
+  ].filter(Boolean);
+  await sendTelegramText(opts.clientTelegramId, lines.join("\n"));
+}
+
 export async function notifyClientWorkerAccepted(opts: {
   clientTelegramId: number;
   orderId: string;

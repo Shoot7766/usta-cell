@@ -35,7 +35,7 @@ export async function PATCH(
   if (!o || o.client_id !== ctx.userId) {
     return NextResponse.json({ error: "Topilmadi" }, { status: 404 });
   }
-  if (!["new", "accepted"].includes(o.status as string)) {
+  if (!["new", "pending_worker", "accepted"].includes(o.status as string)) {
     return NextResponse.json(
       { error: "Narxni faqat yangi yoki qabul qilingan bosqichda o‘zgartirish mumkin" },
       { status: 400 }
@@ -85,7 +85,7 @@ export async function POST(
   if (ctx.role !== "admin" && o.worker_id !== ctx.userId) {
     return NextResponse.json({ error: "Ruxsat yo'q" }, { status: 403 });
   }
-  if (!["new", "accepted"].includes(o.status as string)) {
+  if (!["new", "pending_worker", "accepted"].includes(o.status as string)) {
     return NextResponse.json({ error: "Bu bosqichda tasdiqlab bo‘lmaydi" }, { status: 400 });
   }
   if (!body.confirm) {

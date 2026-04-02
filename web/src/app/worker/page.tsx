@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { loadWebApp } from "@/lib/twa";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { apiJson } from "@/lib/api-client";
@@ -16,10 +17,17 @@ type WorkerInboxData = {
     price_cents: number;
     requests?: { summary?: string | null };
   }[];
-  openRequests: { id: string; summary?: string | null; category?: string | null }[];
+  openRequests: {
+    id: string;
+    summary?: string | null;
+    category?: string | null;
+    last_client_image_url?: string | null;
+    last_image_caption?: string | null;
+  }[];
 };
 
 export default function WorkerInboxPage() {
+  const router = useRouter();
   const [data, setData] = useState<WorkerInboxData | null>(null);
 
   useEffect(() => {
@@ -59,11 +67,17 @@ export default function WorkerInboxPage() {
     }
   }, []);
 
-  const unlock = async (requestId: string) => {
-    await apiJson("/api/worker/lead-unlock", {
+  const reserve = async (requestId: string) => {
+    const r = await apiJson<{ orderId?: string }>("/api/worker/reserve-request", {
       method: "POST",
       body: JSON.stringify({ requestId }),
     });
+    if (r.ok && r.data?.orderId) {
+      router.push(`/worker/order/${r.data.orderId}`);
+      return;
+    }
+    const WebApp = await loadWebApp();
+    WebApp.showAlert(r.error || "Band qilinmadi");
     refresh();
   };
 
@@ -81,6 +95,11 @@ export default function WorkerInboxPage() {
         {data?.newOrders?.map((o) => (
           <Link key={o.id} href={`/worker/order/${o.id}`}>
             <GlassCard className="p-3">
+              <p className="text-[10px] uppercase text-fuchsia-300/80 mb-0.5">
+                {o.status === "pending_worker"
+                  ? "Tasdiqlash kutilmoqda (bozor)"
+                  : "Mijoz tanladi"}
+              </p>
               <p className="text-sm">{o.requests?.summary || "Buyurtma"}</p>
               <p className="text-[11px] text-white/45">
                 {o.price_cents.toLocaleString()} so‘m
@@ -98,13 +117,24 @@ export default function WorkerInboxPage() {
       <div className="space-y-2">
         {data?.openRequests?.map((req) => (
           <GlassCard key={req.id} className="p-3 space-y-2">
+            {req.last_client_image_url && (
+              <div className="space-y-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={req.last_client_image_url}
+                  alt=""
+                  className="w-full max-h-48 rounded-xl object-contain border border-white/10 bg-black/30"
+                  referrerPolicy="no-referrer"
+                />
+                {req.last_image_caption && (
+                  <p className="text-xs text-white/75 whitespace-pre-wrap">{req.last_image_caption}</p>
+                )}
+              </div>
+            )}
             <p className="text-sm">{req.summary}</p>
             <p className="text-[11px] text-white/45">{req.category}</p>
-            <PrimaryButton
-              className="!py-2 !text-xs"
-              onClick={() => unlock(req.id)}
-            >
-              Kontaktni ochish
+            <PrimaryButton className="!py-2 !text-xs" onClick={() => void reserve(req.id)}>
+              Band qilish
             </PrimaryButton>
           </GlassCard>
         ))}

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireSession } from "@/lib/api-auth";
 import { getServiceSupabase } from "@/lib/supabase/admin";
-import { applyNoShowIfNeeded } from "@/lib/order-lifecycle";
+import { applyNoShowIfNeeded, applyPendingWorkerTimeouts } from "@/lib/order-lifecycle";
 
 const Params = z.object({ id: z.string().uuid() });
 
@@ -45,10 +45,11 @@ export async function GET(
           return;
         }
         await applyNoShowIfNeeded(id);
+        if (n % 4 === 0) void applyPendingWorkerTimeouts();
         const { data: row } = await sb
           .from("orders")
           .select(
-            "status, updated_at, accepted_at, work_started_at, completed_at, arrived_deadline_at, price_cents, payment_method, payment_status, payout_released, contract_number"
+            "status, updated_at, accepted_at, work_started_at, completed_at, arrived_deadline_at, price_cents, payment_method, payment_status, payout_released, contract_number, worker_decision_deadline_at"
           )
           .eq("id", id)
           .maybeSingle();

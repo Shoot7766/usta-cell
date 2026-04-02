@@ -30,13 +30,14 @@ export async function GET(
   const requestId = o.request_id as string;
   let phoneUnlocked = isClient || isAdmin;
   if (isWorker && !isAdmin) {
+    const pendingReserve = (o.status as string) === "pending_worker";
     const { data: lead } = await sb
       .from("worker_leads")
       .select("id")
       .eq("request_id", requestId)
       .eq("worker_id", ctx.userId)
       .maybeSingle();
-    phoneUnlocked = Boolean(lead);
+    phoneUnlocked = pendingReserve || Boolean(lead);
   }
   const [{ data: client }, { data: worker }] = await Promise.all([
     sb
@@ -58,7 +59,12 @@ export async function GET(
       }
     : null;
   const showWorkerPhone =
-    isWorker || isAdmin || (isClient && o.status !== "new" && o.status !== "canceled");
+    isWorker ||
+    isAdmin ||
+    (isClient &&
+      o.status !== "new" &&
+      o.status !== "pending_worker" &&
+      o.status !== "canceled");
   const workerOut = worker
     ? {
         ...worker,

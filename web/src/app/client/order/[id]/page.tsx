@@ -26,11 +26,21 @@ const MiniMapPicker = dynamic(
 );
 
 const steps = [
+  { key: "pending_worker", label: "Band qilindi" },
   { key: "new", label: "Yangi" },
   { key: "accepted", label: "Qabul qilindi" },
   { key: "in_progress", label: "Ishlanmoqda" },
   { key: "completed", label: "Yakunlandi" },
 ];
+
+const holatUz: Record<string, string> = {
+  pending_worker: "Usta so‘rovingizni band qildi — u tasdiqlaydi",
+  new: "Yangi",
+  accepted: "Qabul qilindi",
+  in_progress: "Ishlanmoqda",
+  completed: "Yakunlandi",
+  canceled: "Bekor qilingan",
+};
 
 type OrderPayload = {
   status: string;
@@ -283,7 +293,8 @@ export default function ClientOrderPage() {
     load();
   };
 
-  const idx = steps.findIndex((s) => s.key === status);
+  const idxRaw = steps.findIndex((s) => s.key === status);
+  const idx = idxRaw >= 0 ? idxRaw : 0;
 
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28">
@@ -309,7 +320,9 @@ export default function ClientOrderPage() {
             </div>
           ))}
         </div>
-        <p className="text-xs text-white/45 mt-3">Holat: {status}</p>
+        <p className="text-xs text-white/45 mt-3">
+          Holat: {holatUz[status] ?? status}
+        </p>
       </GlassCard>
 
       {clientIssueImageUrl && (
@@ -369,7 +382,7 @@ export default function ClientOrderPage() {
         </button>
       </GlassCard>
 
-      {["new", "accepted"].includes(status) && (
+      {["new", "pending_worker", "accepted"].includes(status) && (
         <GlassCard className="p-4 mb-4 space-y-2">
           <p className="text-xs text-white/45 uppercase">Narxni yangilash</p>
           <p className="text-[11px] text-white/50">
@@ -491,7 +504,7 @@ export default function ClientOrderPage() {
         ))}
       </GlassCard>
 
-      {status === "new" && (
+      {["new", "pending_worker"].includes(status) && (
         <PrimaryButton variant="ghost" onClick={cancel}>
           Bekor qilish (qabuldan oldin bepul)
         </PrimaryButton>

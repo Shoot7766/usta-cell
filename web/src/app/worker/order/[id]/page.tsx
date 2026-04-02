@@ -24,6 +24,10 @@ export default function WorkerOrderPage() {
   const [confirmPriceBusy, setConfirmPriceBusy] = useState(false);
   const [contractNumber, setContractNumber] = useState<string | null>(null);
   const [clientIssueImageUrl, setClientIssueImageUrl] = useState<string | null>(null);
+  const [decisionDeadlineAt, setDecisionDeadlineAt] = useState<string | null>(null);
+  const [remainingSec, setRemainingSec] = useState<number | null>(null);
+  const [clientName, setClientName] = useState<string | null>(null);
+  const [clientPhone, setClientPhone] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -52,6 +56,8 @@ export default function WorkerOrderPage() {
         payout_released?: boolean;
         contract_number?: string | null;
         client_issue_image_url?: string | null;
+        worker_decision_deadline_at?: string | null;
+        client?: { display_name?: string | null; phone?: string | null } | null;
         requests?: { summary?: string | null; category?: string | null } | null;
       };
       events: { event_type: string }[];
@@ -59,6 +65,12 @@ export default function WorkerOrderPage() {
     if (r.ok && r.data) {
       setStatus(r.data.order.status);
       setRequestId(r.data.order.request_id);
+      const ddl = r.data.order.worker_decision_deadline_at;
+      setDecisionDeadlineAt(typeof ddl === "string" && ddl ? ddl : null);
+      const cl = r.data.order.client;
+      setClientName(cl?.display_name?.trim() || null);
+      const ph = cl?.phone?.trim();
+      setClientPhone(ph || null);
       if (typeof r.data.order.price_cents === "number") {
         setPriceCents(r.data.order.price_cents);
       }
@@ -86,18 +98,45 @@ export default function WorkerOrderPage() {
   };
 
   useEffect(() => {
+    if (!decisionDeadlineAt || status !== "pending_worker") {
+      setRemainingSec(null);
+      return;
+    }
+    const tick = () => {
+      const end = new Date(decisionDeadlineAt).getTime();
+      setRemainingSec(Math.max(0, Math.floor((end - Date.now()) / 1000)));
+    };
+    tick();
+    const iv = setInterval(tick, 1000);
+    return () => clearInterval(iv);
+  }, [decisionDeadlineAt, status]);
+
+  useEffect(() => {
+    if (status !== "pending_worker") return;
+    const iv = setInterval(() => void load(), 6000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, id]);
+
+  useEffect(() => {
     void load();
     const es = new EventSource(`/api/orders/${id}/stream`);
     esRef.current = es;
     es.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data) as {
-          order?: { payout_released?: boolean; status?: string };
+          order?: {
+            payout_released?: boolean;
+            status?: string;
+            worker_decision_deadline_at?: string | null;
+          };
         };
         if (typeof msg?.order?.payout_released === "boolean") {
           setPayoutReleased(msg.order.payout_released);
         }
         if (msg?.order?.status) setStatus(msg.order.status);
+        const w = msg?.order?.worker_decision_deadline_at;
+        if (typeof w === "string" && w) setDecisionDeadlineAt(w);
       } catch {
         /* */
       }
@@ -107,12 +146,17 @@ export default function WorkerOrderPage() {
   }, [id]);
 
   const setSt = async (s: "accepted" | "in_progress" | "completed") => {
+    const wasPending = status === "pending_worker";
     const r = await apiJson(`/api/orders/${id}/status`, {
       method: "POST",
       body: JSON.stringify({ status: s }),
     });
-    if (!r.ok && r.error) {
-      const WebApp = await loadWebApp();
+    const WebApp = await loadWebApp();
+    if (r.ok && wasPending && s === "accepted") {
+      WebApp.showAlert(
+        "Buyurtma qabul qilindi. Bepul qabul limiti tugagan bo‘lsa, hisobdan qabul haqi (10 000 so‘m) yechiladi."
+      );
+    } else if (!r.ok && r.error) {
       WebApp.showAlert(r.error);
     }
     load();
@@ -128,10 +172,18 @@ export default function WorkerOrderPage() {
   };
 
   const cancel = async () => {
-    await apiJson(`/api/orders/${id}/cancel`, {
+    const wasP = status === "pending_worker";
+    const r = await apiJson(`/api/orders/${id}/cancel`, {
       method: "POST",
       body: JSON.stringify({ as: "worker" }),
     });
+    const WebApp = await loadWebApp();
+    if (r.ok && wasP) {
+      WebApp.showAlert("Rad etildi. Tarixda qoldi; so‘rov yana bozorga qaytdi.");
+      router.push("/worker");
+      return;
+    }
+    if (!r.ok && r.error) WebApp.showAlert(r.error);
     load();
   };
 
@@ -188,7 +240,7 @@ export default function WorkerOrderPage() {
           {workerPriceOk ? (
             <p className="text-xs text-emerald-300/90">Siz narxdan rozisiz (yozuv qayd etildi).</p>
           ) : (
-            ["new", "accepted"].includes(status) &&
+            ["new", "pending_worker", "accepted"].includes(status) &&
             priceCents > 0 && (
               <PrimaryButton
                 className="!py-2 !text-xs w-full"
@@ -201,8 +253,60 @@ export default function WorkerOrderPage() {
           )}
         </GlassCard>
       )}
+      {status === "pending_worker" && (
+        <GlassCard className="p-4 space-y-3 border border-fuchsia-400/25">
+          <p className="text-[11px] uppercase text-fuchsia-200/80">Bozordan band qilindi</p>
+          <p className="text-xs text-white/70 leading-relaxed">
+            Mijoz bilan gaplashib,{" "}
+            <strong className="text-white/90">10 daqiqa ichida</strong> pastdagi tugmalar bilan
+            tasdiqlang yoki rad eting. Muddat o‘tsa yoki javob bermasangiz, hisobdan{" "}
+            <strong className="text-neon">10 000 so‘m</strong> jarima yechiladi va so‘rov bozorga
+            qaytadi.
+          </p>
+          {remainingSec != null && (
+            <p className="text-sm font-mono text-cyan-200/90">
+              Qolgan vaqt: {String(Math.floor(remainingSec / 60)).padStart(2, "0")}:
+              {String(remainingSec % 60).padStart(2, "0")}
+            </p>
+          )}
+          {(clientName || clientPhone) && (
+            <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 space-y-1">
+              <p className="text-[10px] uppercase text-white/40">Mijoz</p>
+              {clientName && <p className="text-sm text-white/90">{clientName}</p>}
+              {clientPhone && (
+                <a href={`tel:${clientPhone}`} className="text-sm text-cyan-300 underline">
+                  {clientPhone}
+                </a>
+              )}
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <PrimaryButton className="!py-2 !text-xs" onClick={() => void setSt("accepted")}>
+              Tasdiqlash
+            </PrimaryButton>
+            <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={() => void cancel()}>
+              Rad etish
+            </PrimaryButton>
+          </div>
+        </GlassCard>
+      )}
       <GlassCard className="p-4 space-y-2">
-        <p className="text-sm text-white/80">Holat: {status}</p>
+        <p className="text-sm text-white/80">
+          Holat:{" "}
+          {status === "pending_worker"
+            ? "Tasdiqlash kutilmoqda"
+            : status === "new"
+              ? "Yangi"
+              : status === "accepted"
+                ? "Qabul qilindi"
+                : status === "in_progress"
+                  ? "Ishlanmoqda"
+                  : status === "completed"
+                    ? "Yakunlandi"
+                    : status === "canceled"
+                      ? "Bekor / rad etilgan"
+                      : status}
+        </p>
         <p className="text-xs text-white/55">
           Summa: <strong>{priceCents.toLocaleString()} so‘m</strong>
         </p>
@@ -221,9 +325,11 @@ export default function WorkerOrderPage() {
           </p>
         )}
       </GlassCard>
-      <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={unlock}>
-        Mijoz kontakti
-      </PrimaryButton>
+      {status === "new" && (
+        <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={unlock}>
+          Mijoz kontakti
+        </PrimaryButton>
+      )}
       {status === "new" && (
         <div className="grid grid-cols-2 gap-2">
           <PrimaryButton className="!py-2 !text-xs" onClick={() => setSt("accepted")}>

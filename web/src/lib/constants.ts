@@ -18,6 +18,11 @@ export const FREE_TIER_DAILY_REQUEST_CAP = 5;
 export const PRO_SUBSCRIPTION_CENTS_MONTH = 99000;
 export const ARRIVAL_DEADLINE_MINUTES = 45;
 
+/** Bozordan band qilgach usta tasdiqlash/rad muddati (daqiqa). */
+export const MARKET_RESERVE_DEADLINE_MINUTES = Number(
+  process.env.MARKET_RESERVE_DEADLINE_MINUTES ?? 10
+);
+
 /** Reyting va mos xizmat ustuvor (masofa ikkinchi o‘rinda). */
 export const MATCH_WEIGHTS = {
   distance: 0.22,

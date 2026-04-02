@@ -13,6 +13,28 @@ import { isDemoTelegramId } from "@/lib/demo-workers";
 
 const Q = z.object({ requestId: z.string().uuid() });
 
+function mapProfilesToMatchRows(
+  profs: Record<string, unknown>[],
+  nameByUserId: Map<string, string | null>
+) {
+  return profs.map((w: Record<string, unknown>) => ({
+    user_id: w.user_id as string,
+    display_name: nameByUserId.get(w.user_id as string) ?? null,
+    bio: (w.bio as string | null) ?? null,
+    services: (w.services as string[]) ?? [],
+    lat: (w.lat as number | null) ?? null,
+    lng: (w.lng as number | null) ?? null,
+    price_min_cents: 0,
+    price_max_cents: 0,
+    is_available: Boolean(w.is_available),
+    avg_response_seconds: w.avg_response_seconds as number,
+    rating_avg: Number(w.rating_avg),
+    rating_count: w.rating_count as number,
+    subscription_tier: w.subscription_tier as "free" | "pro",
+    portfolio_preview: portfolioPreview(normalizePortfolioFromDb(w.portfolio)),
+  }));
+}
+
 export async function GET(req: NextRequest) {
   const ctx = await requireSession();
   if (ctx instanceof Response) return ctx;
@@ -61,23 +83,22 @@ export async function GET(req: NextRequest) {
   const profilesFiltered = (profiles ?? []).filter((p: { user_id: string }) =>
     allowedIds.has(p.user_id)
   );
-  const rows =
-    profilesFiltered.map((w: Record<string, unknown>) => ({
-      user_id: w.user_id as string,
-      display_name: names.get(w.user_id as string) ?? null,
-      bio: (w.bio as string | null) ?? null,
-      services: (w.services as string[]) ?? [],
-      lat: (w.lat as number | null) ?? null,
-      lng: (w.lng as number | null) ?? null,
-      price_min_cents: 0,
-      price_max_cents: 0,
-      is_available: Boolean(w.is_available),
-      avg_response_seconds: w.avg_response_seconds as number,
-      rating_avg: Number(w.rating_avg),
-      rating_count: w.rating_count as number,
-      subscription_tier: w.subscription_tier as "free" | "pro",
-      portfolio_preview: portfolioPreview(normalizePortfolioFromDb(w.portfolio)),
-    }));
+  let rows = mapProfilesToMatchRows(profilesFiltered, names);
+  if (rows.length === 0) {
+    const demoUsers = (users ?? []).filter((u: { telegram_id?: unknown }) =>
+      isDemoTelegramId(u.telegram_id)
+    );
+    if (demoUsers.length > 0) {
+      const demoIds = new Set(demoUsers.map((u: { id: string }) => u.id));
+      const demoNames = new Map(
+        demoUsers.map((u: { id: string; display_name: string | null }) => [u.id, u.display_name])
+      );
+      const demoProfiles = (profiles ?? []).filter((p: { user_id: string }) =>
+        demoIds.has(p.user_id)
+      );
+      rows = mapProfilesToMatchRows(demoProfiles, demoNames);
+    }
+  }
 
   const blob = buildRequestServiceBlob({
     category: r.category as string | null,

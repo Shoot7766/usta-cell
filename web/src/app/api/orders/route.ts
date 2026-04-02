@@ -62,6 +62,18 @@ export async function POST(req: NextRequest) {
   if (!wu || wu.role !== "worker") {
     return NextResponse.json({ error: "Usta topilmadi" }, { status: 400 });
   }
+  const { data: activeOrd } = await sb
+    .from("orders")
+    .select("id")
+    .eq("request_id", body.requestId)
+    .not("status", "eq", "canceled")
+    .maybeSingle();
+  if (activeOrd?.id) {
+    return NextResponse.json(
+      { error: "Bu so'rov bo'yicha allaqachon buyurtma bor" },
+      { status: 400 }
+    );
+  }
   const priceCents =
     body.priceCents ??
     defaultPriceCents({

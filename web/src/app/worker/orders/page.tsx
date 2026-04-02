@@ -15,6 +15,15 @@ type Row = {
   requests?: { summary?: string | null };
 };
 
+const statusUz: Record<string, string> = {
+  pending_worker: "Tasdiqlanmoqda (bozor)",
+  new: "Yangi",
+  accepted: "Qabul qilindi",
+  in_progress: "Ishlanmoqda",
+  completed: "Yakunlandi",
+  canceled: "Bekor / rad",
+};
+
 export default function WorkerOrdersPage() {
   const [rows, setRows] = useState<Row[]>([]);
 
@@ -43,7 +52,9 @@ export default function WorkerOrdersPage() {
                 <p className="text-[10px] font-mono text-cyan-200/85 mb-1">{o.contract_number}</p>
               )}
               <p className="text-sm">{o.requests?.summary || "Buyurtma"}</p>
-              <p className="text-xs text-white/45 mt-1">{o.status}</p>
+              <p className="text-xs text-white/45 mt-1">
+                {statusUz[o.status] ?? o.status}
+              </p>
             </GlassCard>
           </Link>
         ))}
