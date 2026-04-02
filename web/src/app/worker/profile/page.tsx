@@ -42,7 +42,7 @@ export default function WorkerProfilePage() {
           </PrimaryButton>
         </div>
       </GlassCard>
-      <PrimaryButton onClick={() => router.push("/onboarding")}>
+      <PrimaryButton onClick={() => router.push("/onboarding/worker")}>
         Profilni tahrirlash
       </PrimaryButton>
     </div>

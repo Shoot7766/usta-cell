@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadWebApp } from "@/lib/twa";
+import {
+  getSuggestedDisplayNameFromTelegram,
+  requestTelegramContactPhone,
+} from "@/lib/twa-profile";
 import { apiJson } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
@@ -18,13 +22,19 @@ type Me = {
     pendingRole: string | null;
     workerProfileOk: boolean;
     onboardingStep: string;
+    displayName?: string | null;
+    phone?: string | null;
   };
 };
 
 export function BootClient() {
   const router = useRouter();
-  const [phase, setPhase] = useState<"idle" | "auth" | "route" | "err">("auth");
+  const [phase, setPhase] = useState<
+    "idle" | "auth" | "route" | "needsPhone" | "err"
+  >("auth");
   const [msg, setMsg] = useState("");
+  const [meData, setMeData] = useState<Me | null>(null);
+  const [phoneLoading, setPhoneLoading] = useState(false);
 
   const go = useCallback(
     (m: Me) => {
@@ -45,6 +55,53 @@ export function BootClient() {
     },
     [router]
   );
+
+  const attachPhoneAndContinue = useCallback(async () => {
+    if (!meData) return;
+    setPhoneLoading(true);
+    try {
+      const p = await requestTelegramContactPhone();
+      if (!p) {
+        const WebApp = await loadWebApp();
+        WebApp.showAlert(
+          "Ruxsat berilmadi. Keyinroq onboardingda qo‘lda kiritishingiz mumkin."
+        );
+        setPhoneLoading(false);
+        return;
+      }
+      const suggested = await getSuggestedDisplayNameFromTelegram();
+      const name =
+        meData.user.displayName?.trim() ||
+        suggested ||
+        undefined;
+      await apiJson("/api/user/profile", {
+        method: "PATCH",
+        body: JSON.stringify({
+          phone: p,
+          ...(name && name.length >= 2 ? { displayName: name } : {}),
+        }),
+      });
+      const me = await apiJson<Me>("/api/me");
+      setPhoneLoading(false);
+      if (!me.ok || !me.data) {
+        setPhase("err");
+        setMsg(me.error || "Profil yangilanmadi");
+        return;
+      }
+      setPhase("route");
+      go(me.data);
+    } catch (e) {
+      setPhoneLoading(false);
+      setPhase("err");
+      setMsg(e instanceof Error ? e.message : "Noma'lum xato");
+    }
+  }, [go, meData]);
+
+  const skipPhone = useCallback(() => {
+    if (!meData) return;
+    setPhase("route");
+    go(meData);
+  }, [go, meData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +131,11 @@ export function BootClient() {
         if (!me.ok || !me.data) {
           setPhase("err");
           setMsg(me.error || "Profil yuklanmadi");
+          return;
+        }
+        if (!me.data.user.phone?.trim()) {
+          setMeData(me.data);
+          setPhase("needsPhone");
           return;
         }
         setPhase("route");
@@ -117,11 +179,39 @@ export function BootClient() {
                 <Skeleton className="h-3 w-5/6" />
                 <p className="text-xs text-white/45 pt-2">Tizimga ulanmoqda…</p>
               </motion.div>
+            ) : phase === "needsPhone" ? (
+              <motion.div
+                key="phone"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="space-y-4"
+              >
+                <p className="text-sm text-white/75">
+                  Buyurtma va aloqa uchun telefon raqamingizni ulang. Telegram
+                  faqat siz «Ulashish» desangiz beradi.
+                </p>
+                <PrimaryButton
+                  disabled={phoneLoading}
+                  onClick={() => void attachPhoneAndContinue()}
+                >
+                  {phoneLoading ? "Kutilmoqda…" : "Telegramdan telefonni ulash"}
+                </PrimaryButton>
+                <button
+                  type="button"
+                  className="w-full text-sm text-white/45 py-2"
+                  disabled={phoneLoading}
+                  onClick={skipPhone}
+                >
+                  Keyinroq (onboardingda kiritaman)
+                </button>
+              </motion.div>
             ) : (
               <motion.div
                 key="err"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
                 className="space-y-4"
               >
                 <p className="text-sm text-red-300/90">{msg || "Xatolik"}</p>

@@ -3,10 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadWebApp } from "@/lib/twa";
-import {
-  getSuggestedDisplayNameFromTelegram,
-  requestTelegramContactPhone,
-} from "@/lib/twa-profile";
+import { getSuggestedDisplayNameFromTelegram } from "@/lib/twa-profile";
 import { apiJson } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
@@ -25,17 +22,18 @@ type Me = {
   };
 };
 
+function roleLabelUz(role: string): string {
+  if (role === "client") return "mijoz";
+  if (role === "worker") return "usta";
+  if (role === "admin") return "admin";
+  return role;
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
-  const [services, setServices] = useState("Elektrik, Santexnika");
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
-  const [pMin, setPMin] = useState("50000");
-  const [pMax, setPMax] = useState("500000");
-  const [phoneLoading, setPhoneLoading] = useState(false);
   const [roleLoading, setRoleLoading] = useState(false);
 
   useEffect(() => {
@@ -97,55 +95,12 @@ export default function OnboardingPage() {
     })();
   }, []);
 
-  const fillPhoneFromTelegram = async () => {
-    setPhoneLoading(true);
-    try {
-      const p = await requestTelegramContactPhone();
-      if (p) {
-        setPhone(p);
-        const name = displayName.trim();
-        await apiJson("/api/user/profile", {
-          method: "PATCH",
-          body: JSON.stringify({
-            phone: p,
-            ...(name.length >= 2 ? { displayName: name } : {}),
-          }),
-        });
-        await refresh();
-      } else {
-        const WebApp = await loadWebApp();
-        WebApp.showAlert(
-          "Telefon kelmay qoldi. Telegram raqamni foydalanuvchi «Ulashish» tugmasi orqali ruxsat berganda beradi; avtomatik emas."
-        );
-      }
-    } finally {
-      setPhoneLoading(false);
-    }
-  };
-
   const saveBase = async () => {
     await apiJson("/api/user/profile", {
       method: "PATCH",
       body: JSON.stringify({
         displayName,
         phone,
-      }),
-    });
-    await refresh();
-  };
-
-  const saveWorker = async () => {
-    await apiJson("/api/user/profile", {
-      method: "PATCH",
-      body: JSON.stringify({
-        displayName,
-        phone,
-        services: services.split(",").map((s) => s.trim()).filter(Boolean),
-        lat: parseFloat(lat || "41.31"),
-        lng: parseFloat(lng || "69.24"),
-        priceMinCents: parseInt(pMin, 10) || 0,
-        priceMaxCents: parseInt(pMax, 10) || 0,
-        isAvailable: true,
       }),
     });
     await refresh();
@@ -193,7 +148,8 @@ export default function OnboardingPage() {
         <GlassCard className="p-4 mb-4 space-y-3">
           <p className="text-xs text-white/45 uppercase tracking-wider">Rol</p>
           <p className="text-sm text-white/80">
-            Joriy: <span className="text-neon font-semibold">{role}</span>
+            Joriy:{" "}
+            <span className="text-neon font-semibold">{roleLabelUz(role)}</span>
           </p>
           <div className="flex gap-2">
             <button
@@ -230,17 +186,9 @@ export default function OnboardingPage() {
             onChange={(e) => setPhone(e.target.value)}
           />
           <p className="text-[11px] text-white/40">
-            Ism Telegramdan olinadi va serverga yoziladi. Telefon uchun quyidagi tugma yoki
-            qo‘lda kiritish.
+            Ism Telegramdan avtomatik keladi. Telefonni ilova ochilganda so‘ralgan bo‘lishi
+            mumkin; yo‘q bo‘lsa, bu yerga qo‘lda yozing.
           </p>
-          <button
-            type="button"
-            className="w-full rounded-xl bg-white/5 border border-white/10 py-2 text-sm disabled:opacity-50"
-            disabled={phoneLoading}
-            onClick={() => void fillPhoneFromTelegram()}
-          >
-            {phoneLoading ? "Kutilmoqda…" : "Telegramdan telefonni ulash"}
-          </button>
           <PrimaryButton onClick={() => void saveBase()}>
             O‘zgarishlarni saqlash
           </PrimaryButton>
@@ -248,43 +196,12 @@ export default function OnboardingPage() {
 
         {needWorker && (
           <GlassCard className="p-4 mb-4 space-y-3">
-            <p className="text-xs text-white/45 uppercase tracking-wider">Usta profili</p>
-            <input
-              className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-              placeholder="Xizmatlar (vergul bilan)"
-              value={services}
-              onChange={(e) => setServices(e.target.value)}
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                className="rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-                placeholder="Lat"
-                value={lat}
-                onChange={(e) => setLat(e.target.value)}
-              />
-              <input
-                className="rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-                placeholder="Lng"
-                value={lng}
-                onChange={(e) => setLng(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                className="rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-                placeholder="Min narx (so‘m)"
-                value={pMin}
-                onChange={(e) => setPMin(e.target.value)}
-              />
-              <input
-                className="rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-                placeholder="Max narx (so‘m)"
-                value={pMax}
-                onChange={(e) => setPMax(e.target.value)}
-              />
-            </div>
-            <PrimaryButton onClick={() => void saveWorker()}>
-              Usta profilini saqlash
+            <p className="text-sm text-white/70">
+              Usta profili alohida sahifada to‘liq to‘ldiriladi: xizmatlar, joylashuv,
+              narx oralig‘i.
+            </p>
+            <PrimaryButton onClick={() => router.push("/onboarding/worker")}>
+              Usta profilini to‘ldirish
             </PrimaryButton>
           </GlassCard>
         )}

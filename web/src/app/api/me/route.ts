@@ -10,7 +10,7 @@ export async function GET() {
   if (u.role === "worker") {
     worker = (await loadWorkerProfile(ctx.userId)) as Record<string, unknown> | null;
   }
-  return NextResponse.json({
+  const base = {
     user: {
       id: u.id,
       role: u.role,
@@ -21,5 +21,21 @@ export async function GET() {
       onboardingStep: u.onboarding_step,
       workerProfileOk: u.role === "worker" ? workerProfileComplete(worker) : true,
     },
+  };
+  if (u.role !== "worker") {
+    return NextResponse.json(base);
+  }
+  const wp = worker as Record<string, unknown> | null;
+  return NextResponse.json({
+    ...base,
+    workerProfile: wp
+      ? {
+          services: (wp.services as string[]) ?? [],
+          lat: wp.lat as number | null,
+          lng: wp.lng as number | null,
+          priceMinCents: Number(wp.price_min_cents ?? 0),
+          priceMaxCents: Number(wp.price_max_cents ?? 0),
+        }
+      : null,
   });
 }
