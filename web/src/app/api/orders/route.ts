@@ -13,28 +13,16 @@ const Body = z.object({
   etaMinutes: z.number().int().min(5).max(24 * 60).optional(),
 });
 
-function defaultPriceCents(
-  wp: { price_min_cents: number; price_max_cents: number } | null,
-  r: {
-    price_min_cents: number | null;
-    price_max_cents: number | null;
-  }
-): number {
-  const wmin = wp?.price_min_cents ?? 0;
-  const wmax = wp?.price_max_cents ?? 0;
-  let base = 150_000;
-  if (wmin > 0 && wmax > 0) base = Math.round((wmin + wmax) / 2);
-  else if (wmax > 0) base = wmax;
-  else if (wmin > 0) base = wmin;
-
+function defaultPriceCents(r: {
+  price_min_cents: number | null;
+  price_max_cents: number | null;
+}): number {
   const rmin = r.price_min_cents;
   const rmax = r.price_max_cents;
   if (rmin != null && rmax != null && rmax >= rmin && rmin >= 0) {
-    const mid = Math.round((rmin + rmax) / 2);
-    if (wmin > 0 && wmax > 0) return Math.min(Math.max(mid, wmin), wmax);
-    return Math.max(1, mid);
+    return Math.max(1, Math.round((rmin + rmax) / 2));
   }
-  return Math.max(1, base);
+  return 150_000;
 }
 
 function defaultEtaMinutes(urgency: string | null | undefined): number {
@@ -74,15 +62,9 @@ export async function POST(req: NextRequest) {
   if (!wu || wu.role !== "worker") {
     return NextResponse.json({ error: "Usta topilmadi" }, { status: 400 });
   }
-  const { data: wp } = await sb
-    .from("worker_profiles")
-    .select("price_min_cents, price_max_cents")
-    .eq("user_id", body.workerId)
-    .maybeSingle();
-
   const priceCents =
     body.priceCents ??
-    defaultPriceCents(wp as { price_min_cents: number; price_max_cents: number } | null, {
+    defaultPriceCents({
       price_min_cents: r.price_min_cents as number | null,
       price_max_cents: r.price_max_cents as number | null,
     });

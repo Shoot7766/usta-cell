@@ -131,7 +131,8 @@ export default function OnboardingPage() {
     );
     setRoleLoading(false);
     if (r.ok) {
-      await refresh();
+      await apiJson("/api/auth/sync-session", { method: "POST" });
+      if (typeof window !== "undefined") window.location.reload();
       return;
     }
     const WebApp = await loadWebApp();

@@ -13,8 +13,6 @@ const Body = z.object({
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
   cityName: z.string().max(120).optional(),
-  priceMinCents: z.number().int().nonnegative().optional(),
-  priceMaxCents: z.number().int().nonnegative().optional(),
   workingHours: z.record(z.string()).optional(),
   isAvailable: z.boolean().optional(),
   portfolio: z
@@ -51,8 +49,6 @@ export async function PATCH(req: NextRequest) {
     if (body.lat != null) wp.lat = body.lat;
     if (body.lng != null) wp.lng = body.lng;
     if (body.cityName != null) wp.city_name = sanitizeText(body.cityName, 120);
-    if (body.priceMinCents != null) wp.price_min_cents = body.priceMinCents;
-    if (body.priceMaxCents != null) wp.price_max_cents = body.priceMaxCents;
     if (body.workingHours != null) wp.working_hours = body.workingHours;
     if (body.isAvailable != null) wp.is_available = body.isAvailable;
     if (body.portfolio != null) {
@@ -65,7 +61,12 @@ export async function PATCH(req: NextRequest) {
     }
     if (Object.keys(wp).length > 1) {
       await sb.from("worker_profiles").upsert(
-        { user_id: ctx.userId, ...wp },
+        {
+          user_id: ctx.userId,
+          ...wp,
+          price_min_cents: 0,
+          price_max_cents: 0,
+        },
         { onConflict: "user_id" }
       );
     }

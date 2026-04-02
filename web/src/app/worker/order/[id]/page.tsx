@@ -194,7 +194,7 @@ export default function WorkerOrderPage() {
         </p>
         {status === "completed" && !payoutReleased && (
           <p className="text-[11px] text-amber-200/85 leading-relaxed">
-            Mijoz hamyondan pulni ustaga o‘tkazmaguncha kuting (mini-ilovada tasdiqlash).
+            Mijoz to‘lovni tasdiqlaguncha kuting (mini-ilovada «Pulni ustaga o‘tkazish»).
           </p>
         )}
         {status === "completed" && payoutReleased && (

@@ -7,7 +7,6 @@ import { loadWebApp } from "@/lib/twa";
 import { apiJson } from "@/lib/api-client";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
-import { hapticSuccess } from "@/lib/haptic";
 
 type Me = {
   user: {
@@ -15,15 +14,8 @@ type Me = {
     displayName: string | null;
     phone: string | null;
     profileCompleted: boolean;
-    walletBalanceCents?: number;
   };
 };
-
-const PRESETS = [
-  { label: "+50 000", cents: 50_000 },
-  { label: "+100 000", cents: 100_000 },
-  { label: "+500 000", cents: 500_000 },
-];
 
 const stagger = {
   hidden: {},
@@ -41,14 +33,9 @@ const fadeUp = {
   },
 };
 
-function formatSoM(cents: number) {
-  return cents.toLocaleString("uz-UZ");
-}
-
 export default function ClientProfilePage() {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
-  const [depLoading, setDepLoading] = useState(false);
   const [tgAvatarUrl, setTgAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -78,30 +65,6 @@ export default function ClientProfilePage() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
 
-  const deposit = async (amountCents: number) => {
-    setDepLoading(true);
-    const r = await apiJson<{ walletBalanceCents: number }>("/api/wallet/deposit", {
-      method: "POST",
-      body: JSON.stringify({ amountCents }),
-    });
-    setDepLoading(false);
-    if (r.ok && r.data) {
-      hapticSuccess();
-      setMe((prev) =>
-        prev
-          ? {
-              ...prev,
-              user: {
-                ...prev.user,
-                walletBalanceCents: r.data!.walletBalanceCents,
-              },
-            }
-          : prev
-      );
-    }
-  };
-
-  const bal = me?.user.walletBalanceCents ?? 0;
   const roleUz =
     me?.user.role === "worker"
       ? "Usta"
@@ -175,46 +138,6 @@ export default function ClientProfilePage() {
                 ? "Rasm Telegram profilidan olinadi"
                 : "Telegramda rasm yo‘q yoki brauzerda ko‘rinmaydi"}
             </p>
-          </motion.div>
-
-          <motion.div variants={fadeUp}>
-            <div className="glass-panel neon-ring overflow-hidden rounded-2xl">
-              <div className="h-1 w-full bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-amber-300 opacity-90" />
-              <div className="space-y-3 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
-                      Hamyon
-                    </p>
-                    <p className="mt-1 text-3xl font-bold tabular-nums text-neon">
-                      {formatSoM(bal)}{" "}
-                      <span className="text-base font-semibold text-white/50">so‘m</span>
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-1 text-[9px] text-white/35">
-                    Demo
-                  </div>
-                </div>
-                <p className="text-[11px] leading-relaxed text-white/45">
-                  Ish tugagach, yakunlangan buyurtmada «Pulni o‘tkazish» orqali kelishuv summasini
-                  ustaga yuborasiz. Oldindan balansni to‘ldiring.
-                </p>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {PRESETS.map((p) => (
-                    <motion.button
-                      key={p.cents}
-                      type="button"
-                      disabled={depLoading}
-                      whileTap={{ scale: 0.96 }}
-                      className="rounded-xl border border-white/15 bg-gradient-to-b from-white/[0.14] to-white/[0.05] px-3.5 py-2 text-xs font-medium text-white shadow-sm shadow-black/20 disabled:opacity-45"
-                      onClick={() => void deposit(p.cents)}
-                    >
-                      {p.label}
-                    </motion.button>
-                  ))}
-                </div>
-              </div>
-            </div>
           </motion.div>
 
           <motion.div variants={fadeUp}>

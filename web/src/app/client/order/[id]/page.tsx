@@ -318,7 +318,8 @@ export default function ClientOrderPage() {
           </p>
           <p className="text-[10px] text-white/40 leading-relaxed">
             Tomonlar telefonda kelishgan. Usta «Narxdan roziman» tugmasini bosgach, bu narx
-            yakuniy hisoblanadi. To‘lov ish bitgach hamyon orqali.
+            yakuniy hisoblanadi. To‘lov ish bitgach kelishilgan usul bo‘yicha (naqd, karta,
+            o‘tkazma).
           </p>
           {workerConfirmedPrice && (
             <p className="text-xs text-emerald-300/90">Usta kelishilgan narxdan rozi.</p>
@@ -485,13 +486,14 @@ export default function ClientOrderPage() {
 
       {status === "completed" && !payoutReleased && priceCents > 0 && (
         <GlassCard className="p-4 mt-4 space-y-2 border border-amber-400/25">
-          <p className="text-sm font-semibold text-amber-200/95">Hamyon orqali to‘lov</p>
+          <p className="text-sm font-semibold text-amber-200/95">To‘lovni tasdiqlash</p>
           <p className="text-xs text-white/60">
-            Ish tugaganini tasdiqlaysiz:{" "}
+            Ish tugaganini va{" "}
             <span className="text-neon font-medium">
               {priceCents.toLocaleString()} so‘m
             </span>{" "}
-            hamyoningizdan yechiladi va ustaga o‘tkaziladi (komissiya hisobga olinadi).
+            kelishilgan to‘lovni ustaga hisoblashni tasdiqlaysiz (platforma faqat ustaga daromad
+            yozuvini qayd etadi).
           </p>
           <PrimaryButton
             disabled={payoutLoading}

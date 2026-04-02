@@ -25,6 +25,8 @@ export default function WorkerPortfolioPage() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [ready, setReady] = useState(false);
+  /** Keyingi yuklanadigan rasm uchun izoh (yuklashdan oldin yoziladi). */
+  const [nextCaption, setNextCaption] = useState("");
 
   useEffect(() => {
     void loadWebApp().then((WebApp) => {
@@ -80,7 +82,9 @@ export default function WorkerPortfolioPage() {
     }
     const j = (await res.json()) as { url?: string };
     if (j.url) {
-      setPortfolioItems((p) => [...p, { imageUrl: j.url!, caption: "" }]);
+      const cap = nextCaption.trim();
+      setNextCaption("");
+      setPortfolioItems((p) => [...p, { imageUrl: j.url!, caption: cap }]);
       hapticSuccess();
     }
   };
@@ -133,6 +137,17 @@ export default function WorkerPortfolioPage() {
       />
 
       <GlassCard className="p-4 mb-3 space-y-3">
+        <div className="space-y-1.5">
+          <p className="text-[10px] uppercase tracking-wider text-white/40">
+            Rasm uchun izoh
+          </p>
+          <textarea
+            className="w-full min-h-[64px] rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
+            placeholder="Bu rasm nima ish? (ixtiyoriy — yuklashdan oldin yozing)"
+            value={nextCaption}
+            onChange={(e) => setNextCaption(e.target.value)}
+          />
+        </div>
         <button
           type="button"
           disabled={uploading || portfolioItems.length >= 12}

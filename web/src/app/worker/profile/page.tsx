@@ -13,6 +13,9 @@ import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
 import { FREE_ORDER_ACCEPTS, ORDER_ACCEPT_FEE_CENTS } from "@/lib/constants";
 import { hapticSuccess } from "@/lib/haptic";
+import { WORKER_TRADE_OPTIONS } from "@/lib/worker-trades";
+import { reverseGeocodeCity } from "@/lib/reverse-geocode";
+import { getWorkerTopupCardDisplay } from "@/lib/worker-topup-public";
 
 const MiniMapPicker = dynamic(
   () =>
@@ -40,8 +43,6 @@ type Me = {
     services: string[];
     lat: number | null;
     lng: number | null;
-    priceMinCents: number;
-    priceMaxCents: number;
     bio?: string | null;
     cityName?: string | null;
   } | null;
@@ -55,26 +56,28 @@ type TgUser = {
   last_name?: string;
 };
 
+const tradeSet = new Set<string>(WORKER_TRADE_OPTIONS);
+
 export default function WorkerProfilePage() {
   const router = useRouter();
-  const [tier, setTier] = useState<"free" | "pro">("free");
   const [me, setMe] = useState<Me | null>(null);
   const [tgUser, setTgUser] = useState<TgUser | null>(null);
-  const [services, setServices] = useState("");
+  const [selectedTrades, setSelectedTrades] = useState<string[]>([]);
   const [bio, setBio] = useState("");
   const [cityName, setCityName] = useState("");
-  const [pMin, setPMin] = useState("");
-  const [pMax, setPMax] = useState("");
   const [mapLat, setMapLat] = useState(FALLBACK_REGION_LAT);
   const [mapLng, setMapLng] = useState(FALLBACK_REGION_LNG);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [locLoading, setLocLoading] = useState(false);
-  const [leadDepLoading, setLeadDepLoading] = useState(false);
+  const [topupLoading, setTopupLoading] = useState(false);
   const [ready, setReady] = useState(false);
   const [tgReady, setTgReady] = useState(false);
   const syncedTgName = useRef(false);
+  const geoDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cardDisplay = useMemo(() => getWorkerTopupCardDisplay(), []);
 
   const displayNameLine = useMemo(() => {
     if (tgUser?.first_name) {
@@ -120,9 +123,10 @@ export default function WorkerProfilePage() {
         return;
       }
       const wp = data.workerProfile;
-      if (wp?.services?.length) setServices(wp.services.join(", "));
-      if (wp?.priceMinCents) setPMin(String(wp.priceMinCents));
-      if (wp?.priceMaxCents) setPMax(String(wp.priceMaxCents));
+      if (wp?.services?.length) {
+        const known = wp.services.filter((s) => tradeSet.has(s));
+        setSelectedTrades(known.length ? known : []);
+      }
       if (wp?.lat != null && Number.isFinite(wp.lat)) setMapLat(wp.lat);
       if (wp?.lng != null && Number.isFinite(wp.lng)) setMapLng(wp.lng);
       if (wp?.bio) setBio(wp.bio);
@@ -167,12 +171,14 @@ export default function WorkerProfilePage() {
     })();
   }, [ready]);
 
-  const sub = async (t: "free" | "pro") => {
-    const r = await apiJson("/api/subscriptions", {
-      method: "POST",
-      body: JSON.stringify({ tier: t }),
-    });
-    if (r.ok) setTier(t);
+  const scheduleCityFromMap = (la: number, ln: number) => {
+    if (geoDebounce.current) clearTimeout(geoDebounce.current);
+    geoDebounce.current = setTimeout(() => {
+      void (async () => {
+        const city = await reverseGeocodeCity(la, ln);
+        if (city) setCityName(city);
+      })();
+    }, 850);
   };
 
   const pickLoc = async () => {
@@ -182,35 +188,59 @@ export default function WorkerProfilePage() {
     if (g) {
       setMapLat(g.lat);
       setMapLng(g.lng);
+      const city = await reverseGeocodeCity(g.lat, g.lng);
+      if (city) setCityName(city);
     } else {
       const WebApp = await loadWebApp();
       WebApp.showAlert("Joylashuv aniqlanmadi. Xaritadan nuqtani tanlang.");
     }
   };
 
+  const toggleTrade = (label: string) => {
+    setSelectedTrades((prev) =>
+      prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]
+    );
+  };
+
   const saveDetails = async () => {
+    const WebApp = await loadWebApp();
+    if (selectedTrades.length === 0) {
+      WebApp.showAlert("Kamida bitta ustachilik turini tanlang.");
+      return;
+    }
     setSaving(true);
-    const svc = services
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
     await apiJson("/api/user/profile", {
       method: "PATCH",
       body: JSON.stringify({
         bio: bio.trim() || undefined,
         cityName: cityName.trim() || undefined,
-        services: svc.length ? svc : ["Umumiy ustachilik"],
+        services: selectedTrades,
         lat: mapLat,
         lng: mapLng,
-        priceMinCents: parseInt(pMin, 10) || 0,
-        priceMaxCents: parseInt(pMax, 10) || 0,
         isAvailable: true,
       }),
     });
     setSaving(false);
-    const WebApp = await loadWebApp();
     WebApp.showAlert("Saqlandi.");
     await loadMe();
+  };
+
+  const requestTopup = async (amountCents: number) => {
+    setTopupLoading(true);
+    const r = await apiJson("/api/worker/topup-request", {
+      method: "POST",
+      body: JSON.stringify({ amountCents }),
+    });
+    setTopupLoading(false);
+    const WebApp = await loadWebApp();
+    if (r.ok) {
+      hapticSuccess();
+      WebApp.showAlert(
+        "So‘rov yuborildi. Ko‘rsatilgan kartaga pul o‘tkazing. Admin tasdig‘idan keyin qabul balansiga tushadi."
+      );
+    } else {
+      WebApp.showAlert(r.error || "So‘rov yuborilmadi");
+    }
   };
 
   const tgAvatarUrl =
@@ -222,26 +252,6 @@ export default function WorkerProfilePage() {
   const freeAcceptsLeft = me?.workerFreeAcceptsRemaining ?? 0;
   const phoneLine = me?.user.phone?.trim() || null;
   const acceptFeeStr = ORDER_ACCEPT_FEE_CENTS.toLocaleString("uz-UZ");
-
-  const depositLeads = async (amountCents: number) => {
-    setLeadDepLoading(true);
-    const r = await apiJson<{ leadsBalanceCents: number }>("/api/worker/leads-deposit", {
-      method: "POST",
-      body: JSON.stringify({ amountCents }),
-    });
-    setLeadDepLoading(false);
-    if (r.ok && r.data) {
-      hapticSuccess();
-      setMe((prev) =>
-        prev
-          ? { ...prev, workerLeadsBalanceCents: r.data!.leadsBalanceCents }
-          : prev
-      );
-    } else {
-      const WebApp = await loadWebApp();
-      WebApp.showAlert(r.error || "To‘ldirish muvaffaqiyatsiz");
-    }
-  };
 
   if (!ready || !me) {
     return (
@@ -316,9 +326,15 @@ export default function WorkerProfilePage() {
             </strong>
           </span>
         </div>
-        <p className="text-[10px] text-white/35">
-          Demo: qabul balansini to‘ldiring (keyin to‘lov tizimi ulanadi).
-        </p>
+        <div className="rounded-xl border border-white/10 bg-black/25 p-3 space-y-2">
+          <p className="text-[10px] uppercase text-white/40">To‘ldirish (karta)</p>
+          <p className="text-xs text-white/70 font-mono tracking-wide">{cardDisplay.number}</p>
+          <p className="text-[11px] text-white/55">{cardDisplay.holder}</p>
+          <p className="text-[10px] text-white/40 leading-relaxed">
+            Summani tanlang, keyin yuqoridagi kartaga o‘tkazing. «To‘ldirish so‘rovi» yuboriladi —
+            admin tasdig‘idan keyin qabul balansiga qo‘shiladi.
+          </p>
+        </div>
         <div className="flex flex-wrap gap-2">
           {[
             { label: "+50 000", cents: 50_000 },
@@ -327,11 +343,11 @@ export default function WorkerProfilePage() {
             <button
               key={p.cents}
               type="button"
-              disabled={leadDepLoading}
+              disabled={topupLoading}
               className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs disabled:opacity-45"
-              onClick={() => void depositLeads(p.cents)}
+              onClick={() => void requestTopup(p.cents)}
             >
-              {p.label}
+              {p.label} · so‘rov
             </button>
           ))}
         </div>
@@ -345,28 +361,15 @@ export default function WorkerProfilePage() {
           {earnings.toLocaleString("uz-UZ")} so‘m
         </p>
         <p className="text-[11px] text-white/45 leading-relaxed">
-          Mijoz ishni yakunlab, hamyondan to‘laganidan keyin bu yerga o‘tadi.
+          Mijoz ishni yakunlab, to‘lovni tasdiqlagach bu yerga yoziladi.
         </p>
-      </GlassCard>
-
-      <GlassCard className="p-4 mb-3 space-y-2">
-        <p className="text-xs text-white/45">Obuna (reyting ustuvorligi)</p>
-        <p className="text-sm">Joriy: {tier}</p>
-        <div className="grid grid-cols-2 gap-2">
-          <PrimaryButton className="!py-2 !text-xs" onClick={() => sub("free")}>
-            Free
-          </PrimaryButton>
-          <PrimaryButton className="!py-2 !text-xs" onClick={() => sub("pro")}>
-            Pro
-          </PrimaryButton>
-        </div>
       </GlassCard>
 
       <GlassCard className="p-4 mb-3 space-y-3">
         <p className="text-xs text-white/45 uppercase">Ish profili</p>
         <p className="text-[11px] text-white/40 leading-relaxed">
-          Xaritada nuqtani suring yoki xaritani bosing. «Joylashuvni aniqlash» GPS / Telegram
-          orqali joriy joyni qo‘yadi.
+          Xaritada nuqtani suring yoki xaritani bosing — shahar nomi avtomatik aniqlanadi (ixtiyoriy
+          tahrirlash mumkin). «Joylashuvni aniqlash» GPS / Telegram orqali joriy nuqtani qo‘yadi.
         </p>
         <MiniMapPicker
           lat={mapLat}
@@ -374,6 +377,7 @@ export default function WorkerProfilePage() {
           onChange={(la, ln) => {
             setMapLat(la);
             setMapLng(ln);
+            scheduleCityFromMap(la, ln);
           }}
           className="min-h-[200px]"
         />
@@ -385,12 +389,28 @@ export default function WorkerProfilePage() {
         >
           {locLoading ? "Aniqlanmoqda…" : "Joylashuvni aniqlash"}
         </button>
-        <input
-          className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-          placeholder="Xizmatlar (vergul bilan)"
-          value={services}
-          onChange={(e) => setServices(e.target.value)}
-        />
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase text-white/40">Ustachilik turlari</p>
+          <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto pr-1">
+            {WORKER_TRADE_OPTIONS.map((t) => {
+              const on = selectedTrades.includes(t);
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => toggleTrade(t)}
+                  className={`rounded-full border px-3 py-1.5 text-[11px] transition-colors ${
+                    on
+                      ? "border-cyan-400/50 bg-cyan-500/20 text-cyan-100"
+                      : "border-white/12 bg-white/5 text-white/55"
+                  }`}
+                >
+                  {t}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <textarea
           className="w-full min-h-[72px] rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
           placeholder="O‘zingiz haqingizda qisqa (ixtiyoriy)"
@@ -399,24 +419,10 @@ export default function WorkerProfilePage() {
         />
         <input
           className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-          placeholder="Shahar (ixtiyoriy)"
+          placeholder="Shahar (avtomatik yoki qo‘lda)"
           value={cityName}
           onChange={(e) => setCityName(e.target.value)}
         />
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            className="rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-            placeholder="Min narx (so‘m)"
-            value={pMin}
-            onChange={(e) => setPMin(e.target.value)}
-          />
-          <input
-            className="rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-            placeholder="Max narx (so‘m)"
-            value={pMax}
-            onChange={(e) => setPMax(e.target.value)}
-          />
-        </div>
         <PrimaryButton disabled={saving} onClick={() => void saveDetails()}>
           {saving ? "Saqlanmoqda…" : "Ish profilini saqlash"}
         </PrimaryButton>

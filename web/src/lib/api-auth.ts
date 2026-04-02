@@ -93,10 +93,7 @@ export function workerProfileComplete(
   const services = row.services as string[] | undefined;
   const lat = row.lat as number | null | undefined;
   const lng = row.lng as number | null | undefined;
-  const pm = row.price_min_cents as number | undefined;
-  const px = row.price_max_cents as number | undefined;
   if (!services?.length) return false;
   if (lat == null || lng == null) return false;
-  if (pm == null || px == null || px < pm) return false;
   return true;
 }

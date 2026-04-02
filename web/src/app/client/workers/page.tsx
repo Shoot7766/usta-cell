@@ -87,10 +87,15 @@ function WorkerSwipeCard({
             </span>
           ))}
         </div>
-        <p className="text-xs text-white/55 mt-2">
-          Narx: {w.price_min_cents.toLocaleString()} — {w.price_max_cents.toLocaleString()}{" "}
-          so‘m
-        </p>
+        {(w.price_min_cents > 0 || w.price_max_cents > 0) && (
+          <p className="text-xs text-white/55 mt-2">
+            Narx: {w.price_min_cents.toLocaleString()} — {w.price_max_cents.toLocaleString()}{" "}
+            so‘m
+          </p>
+        )}
+        {w.price_min_cents <= 0 && w.price_max_cents <= 0 && (
+          <p className="text-xs text-white/45 mt-2">Narx telefonda kelishiladi.</p>
+        )}
         {w.portfolio_preview && w.portfolio_preview.length > 0 && (
           <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 -mx-1 px-1">
             {w.portfolio_preview.map((p, i) => (

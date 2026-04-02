@@ -12,21 +12,22 @@ export async function GET() {
   if (u.role === "worker") {
     worker = (await loadWorkerProfile(ctx.userId)) as Record<string, unknown> | null;
   }
-  const base = {
-    user: {
-      id: u.id,
-      role: u.role,
-      profileCompleted: u.profile_completed,
-      pendingRole: u.pending_role,
-      displayName: u.display_name,
-      firstName: u.first_name,
-      lastName: u.last_name,
-      phone: u.phone,
-      walletBalanceCents: u.wallet_balance_cents ?? 0,
-      onboardingStep: u.onboarding_step,
-      workerProfileOk: u.role === "worker" ? workerProfileComplete(worker) : true,
-    },
+  const baseUser: Record<string, unknown> = {
+    id: u.id,
+    role: u.role,
+    profileCompleted: u.profile_completed,
+    pendingRole: u.pending_role,
+    displayName: u.display_name,
+    firstName: u.first_name,
+    lastName: u.last_name,
+    phone: u.phone,
+    onboardingStep: u.onboarding_step,
+    workerProfileOk: u.role === "worker" ? workerProfileComplete(worker) : true,
   };
+  if (u.role !== "client") {
+    baseUser.walletBalanceCents = u.wallet_balance_cents ?? 0;
+  }
+  const base = { user: baseUser };
   if (u.role !== "worker") {
     return NextResponse.json(base);
   }
@@ -44,8 +45,6 @@ export async function GET() {
           services: (wp.services as string[]) ?? [],
           lat: wp.lat as number | null,
           lng: wp.lng as number | null,
-          priceMinCents: Number(wp.price_min_cents ?? 0),
-          priceMaxCents: Number(wp.price_max_cents ?? 0),
           bio: (wp.bio as string | null) ?? null,
           cityName: (wp.city_name as string | null) ?? null,
           portfolio: portfolioDb.map((p) => ({

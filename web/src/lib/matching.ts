@@ -47,6 +47,7 @@ function normPriceFit(
   reqMin?: number | null,
   reqMax?: number | null
 ): number {
+  if (workerMin <= 0 && workerMax <= 0) return 0.75;
   if (reqMin == null && reqMax == null) return 0.75;
   const rMin = reqMin ?? workerMin;
   const rMax = reqMax ?? workerMax;
