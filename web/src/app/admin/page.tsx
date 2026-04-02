@@ -11,6 +11,17 @@ type DisputeRow = {
   status: string;
 };
 
+type AdminStats = {
+  usersTotal: number;
+  clients: number;
+  workers: number;
+  admins: number;
+  ordersTotal: number;
+  ordersCompleted: number;
+  topupPending: number;
+  topupApprovedTotal: number;
+};
+
 type TopupRow = {
   id: string;
   worker_id: string;
@@ -23,6 +34,7 @@ type TopupRow = {
 };
 
 export default function AdminPage() {
+  const [stats, setStats] = useState<AdminStats | null>(null);
   const [disputes, setDisputes] = useState<DisputeRow[]>([]);
   const [topups, setTopups] = useState<TopupRow[]>([]);
   const [res, setRes] = useState("");
@@ -38,10 +50,16 @@ export default function AdminPage() {
     if (r.ok && r.data?.requests) setTopups(r.data.requests);
   }, []);
 
+  const loadStats = useCallback(async () => {
+    const r = await apiJson<{ stats: AdminStats }>("/api/admin/stats");
+    if (r.ok && r.data?.stats) setStats(r.data.stats);
+  }, []);
+
   useEffect(() => {
+    void loadStats();
     void loadDisputes();
     void loadTopups();
-  }, [loadDisputes, loadTopups]);
+  }, [loadStats, loadDisputes, loadTopups]);
 
   const resolve = async (id: string) => {
     await apiJson(`/api/disputes/${id}/resolve`, {
@@ -61,7 +79,29 @@ export default function AdminPage() {
   return (
     <div className="min-h-dvh px-4 pt-4 pb-10 space-y-8">
       <section>
-        <h1 className="text-lg font-bold gradient-text mb-3">Admin — usta to‘ldirish</h1>
+        <h1 className="text-lg font-bold gradient-text mb-2">Statistika</h1>
+        {stats ? (
+          <GlassCard className="p-4 mb-4 space-y-2 text-sm text-white/80">
+            <p>
+              Foydalanuvchilar: <strong className="text-white">{stats.usersTotal}</strong> (mijoz:{" "}
+              {stats.clients}, usta: {stats.workers}, admin: {stats.admins})
+            </p>
+            <p>
+              Buyurtmalar: <strong className="text-white">{stats.ordersTotal}</strong> · yakunlangan:{" "}
+              {stats.ordersCompleted}
+            </p>
+            <p>
+              To‘ldirish: kutilmoqda <strong className="text-amber-200">{stats.topupPending}</strong> ·
+              tasdiqlangan jami: {stats.topupApprovedTotal}
+            </p>
+          </GlassCard>
+        ) : (
+          <p className="text-xs text-white/40 mb-4">Statistika yuklanmadi (admin sifatida kiring).</p>
+        )}
+      </section>
+
+      <section>
+        <h2 className="text-base font-bold gradient-text mb-3">Admin — usta to‘ldirish</h2>
         <p className="text-xs text-white/45 mb-3">
           Kutilayotgan so‘rovlarni tasdiqlang — pul usta qabul balansiga qo‘shiladi.
         </p>

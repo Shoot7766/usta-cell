@@ -15,7 +15,7 @@ import { hapticSuccess } from "@/lib/haptic";
 import { WORKER_TRADE_OPTIONS } from "@/lib/worker-trades";
 import { reverseGeocodeCity } from "@/lib/reverse-geocode";
 import { getWorkerTopupCardDisplay } from "@/lib/worker-topup-public";
-import { logoutToRolePicker } from "@/lib/auth-client";
+import { ProfileExitDoor } from "@/components/ui/ProfileExitDoor";
 
 const MiniMapPicker = dynamic(
   () =>
@@ -311,7 +311,10 @@ export default function WorkerProfilePage() {
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28">
       <TwaShell />
-      <h1 className="text-lg font-bold gradient-text mb-3">Usta profili</h1>
+      <div className="flex items-center gap-3 mb-3">
+        <ProfileExitDoor className="shrink-0" />
+        <h1 className="text-lg font-bold gradient-text flex-1 min-w-0">Usta profili</h1>
+      </div>
 
       <GlassCard className="p-4 mb-3 space-y-3">
         <p className="text-[10px] uppercase tracking-wider text-white/40">Shaxsiy ma’lumot</p>
@@ -352,13 +355,6 @@ export default function WorkerProfilePage() {
             </PrimaryButton>
           </div>
         </div>
-        <button
-          type="button"
-          className="w-full rounded-xl border border-white/12 bg-white/5 py-2.5 text-xs text-white/65"
-          onClick={() => void logoutToRolePicker()}
-        >
-          Profildan chiqish (keyin mijoz sifatida kirish mumkin)
-        </button>
       </GlassCard>
 
       <GlassCard className="p-4 mb-3 space-y-3 border border-cyan-500/20">

@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { loadWebApp } from "@/lib/twa";
 import { apiJson } from "@/lib/api-client";
@@ -35,11 +36,13 @@ function WorkerSwipeCard({
   onPick,
   busy,
   anyOrdering,
+  requestId,
 }: {
   w: W;
   onPick: () => void;
   busy: boolean;
   anyOrdering: boolean;
+  requestId: string;
 }) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-120, 120], [-6, 6]);
@@ -113,6 +116,16 @@ function WorkerSwipeCard({
         <PrimaryButton className="mt-3 !py-2.5" disabled={anyOrdering} onClick={onPick}>
           {busy ? "Buyurtma yaratilmoqda…" : "Tanlash"}
         </PrimaryButton>
+        <Link
+          href={
+            requestId
+              ? `/client/worker/${w.user_id}?requestId=${encodeURIComponent(requestId)}`
+              : `/client/worker/${w.user_id}`
+          }
+          className="mt-2 block text-center text-xs text-cyan-300/90 underline underline-offset-2"
+        >
+          Profil va portfolio (izohlar bilan)
+        </Link>
         <p className="text-[10px] text-white/35 mt-2 text-center">
           O‘ngga suring — tez tanlash
         </p>
@@ -189,6 +202,7 @@ function WorkersPageContent() {
         <WorkerSwipeCard
           key={w.user_id}
           w={w}
+          requestId={requestId}
           busy={orderingId === w.user_id}
           anyOrdering={orderingId !== null}
           onPick={() => void pickWorker(w)}

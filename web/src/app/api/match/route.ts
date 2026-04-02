@@ -9,6 +9,7 @@ import {
   requestEligibleForMatchFlow,
 } from "@/lib/service-match";
 import { normalizePortfolioFromDb, portfolioPreview } from "@/lib/portfolio";
+import { isDemoTelegramId } from "@/lib/demo-workers";
 
 const Q = z.object({ requestId: z.string().uuid() });
 
@@ -47,17 +48,21 @@ export async function GET(req: NextRequest) {
   }
   const { data: users } = await sb
     .from("users")
-    .select("id, display_name, role")
+    .select("id, display_name, role, telegram_id")
     .in("id", ids)
     .eq("role", "worker");
+  const realWorkers = (users ?? []).filter(
+    (u: { telegram_id?: unknown }) => !isDemoTelegramId(u.telegram_id)
+  );
   const names = new Map(
-    (users ?? []).map((u: { id: string; display_name: string | null }) => [
-      u.id,
-      u.display_name,
-    ])
+    realWorkers.map((u: { id: string; display_name: string | null }) => [u.id, u.display_name])
+  );
+  const allowedIds = new Set(realWorkers.map((u: { id: string }) => u.id));
+  const profilesFiltered = (profiles ?? []).filter((p: { user_id: string }) =>
+    allowedIds.has(p.user_id)
   );
   const rows =
-    profiles?.map((w: Record<string, unknown>) => ({
+    profilesFiltered.map((w: Record<string, unknown>) => ({
       user_id: w.user_id as string,
       display_name: names.get(w.user_id as string) ?? null,
       bio: (w.bio as string | null) ?? null,
@@ -72,7 +77,7 @@ export async function GET(req: NextRequest) {
       rating_count: w.rating_count as number,
       subscription_tier: w.subscription_tier as "free" | "pro",
       portfolio_preview: portfolioPreview(normalizePortfolioFromDb(w.portfolio)),
-    })) ?? [];
+    }));
 
   const blob = buildRequestServiceBlob({
     category: r.category as string | null,

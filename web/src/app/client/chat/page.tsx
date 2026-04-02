@@ -34,6 +34,7 @@ type AiRes = {
     urgency: string;
     questions: string[];
     summary: string;
+    reasoning?: string;
     tags: string[];
   };
 };
@@ -45,6 +46,7 @@ function draftToAi(d: DraftRequest): AiRes["ai"] | null {
     tags?: string[];
     questions?: string[];
     urgency?: string;
+    reasoning?: string;
   };
   if (!String(d.summary ?? "").trim() && !String(d.category ?? "").trim()) return null;
   return {
@@ -52,6 +54,7 @@ function draftToAi(d: DraftRequest): AiRes["ai"] | null {
     urgency: (d.urgency as string) || st.urgency || "medium",
     questions: Array.isArray(st.questions) ? st.questions : [],
     summary: d.summary || "",
+    reasoning: typeof st.reasoning === "string" ? st.reasoning : "",
     tags:
       Array.isArray(d.tags) && d.tags.length > 0 ? d.tags : Array.isArray(st.tags) ? st.tags : [],
   };
@@ -76,11 +79,8 @@ export default function ClientChatPage() {
   const [loading, setLoading] = useState(false);
   const [hydrating, setHydrating] = useState(true);
   const [pendingImagePath, setPendingImagePath] = useState<string | null>(null);
-  const [recording, setRecording] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const fileImgRef = useRef<HTMLInputElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
 
   const applyDraft = (d: DraftRequest) => {
     setRequestId(d.id);
@@ -166,55 +166,6 @@ export default function ClientChatPage() {
     if (f) void uploadImageFile(f);
   };
 
-  const stopRecording = () => {
-    const mr = mediaRecorderRef.current;
-    if (mr && mr.state !== "inactive") mr.stop();
-    mediaRecorderRef.current = null;
-    setRecording(false);
-  };
-
-  const startRecording = async () => {
-    if (recording) {
-      stopRecording();
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime =
-        typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/webm")
-          ? "audio/webm"
-          : "audio/mp4";
-      const mr = new MediaRecorder(stream, { mimeType: mime });
-      chunksRef.current = [];
-      mr.ondataavailable = (ev) => {
-        if (ev.data.size > 0) chunksRef.current.push(ev.data);
-      };
-      mr.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: mr.mimeType || mime });
-        chunksRef.current = [];
-        const fd = new FormData();
-        const ext = blob.type.includes("webm") ? "webm" : "m4a";
-        fd.append("file", blob, `voice.${ext}`);
-        const r = await apiForm<{ text: string }>("/api/ai/transcribe", fd);
-        if (r.ok && r.data?.text) {
-          setText((prev) => {
-            const t = r.data!.text.trim();
-            if (!t) return prev;
-            return prev ? `${prev.trim()} ${t}` : t;
-          });
-        } else if (r.error) {
-          window.alert(r.error);
-        }
-      };
-      mr.start(200);
-      mediaRecorderRef.current = mr;
-      setRecording(true);
-    } catch {
-      window.alert("Mikrofonga ruxsat berilmadi yoki qo‘llab-quvvatlanmaydi.");
-    }
-  };
-
   const send = async () => {
     const trimmed = text.trim();
     if (!trimmed && !pendingImagePath) return;
@@ -295,6 +246,14 @@ export default function ClientChatPage() {
                 {lastAi.category} · {lastAi.urgency}
               </p>
               <p className="text-sm text-white/90">{lastAi.summary}</p>
+              {lastAi.reasoning?.trim() && (
+                <div className="rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-3 py-2">
+                  <p className="text-[10px] uppercase text-cyan-200/70 mb-1">AI tahlili</p>
+                  <p className="text-xs text-white/80 whitespace-pre-wrap leading-relaxed">
+                    {lastAi.reasoning}
+                  </p>
+                </div>
+              )}
               {lastAi.questions?.length > 0 && (
                 <ul className="text-xs text-cyan-200/90 list-disc pl-4 space-y-1">
                   {lastAi.questions.map((q) => (
@@ -350,17 +309,6 @@ export default function ClientChatPage() {
             onClick={() => fileImgRef.current?.click()}
           >
             Rasm
-          </button>
-          <button
-            type="button"
-            className={`rounded-xl border px-3 py-2 text-xs shrink-0 ${
-              recording
-                ? "bg-red-500/25 border-red-400/50 text-red-200"
-                : "bg-white/10 border-white/15"
-            }`}
-            onClick={() => void (recording ? stopRecording() : startRecording())}
-          >
-            {recording ? "To‘xtatish" : "Ovoz"}
           </button>
         </div>
         <textarea

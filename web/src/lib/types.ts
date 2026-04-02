@@ -17,6 +17,8 @@ export const AiDispatcherSchema = z.object({
   urgency: z.enum(["low", "medium", "high"]),
   questions: z.array(z.string()).max(4),
   summary: z.string(),
+  /** Qisqa fikrlash: qanday usta kerak, nimalarga e’tibor berish. */
+  reasoning: z.string().max(2000).optional(),
   tags: z.array(z.string()).max(12),
   price_min_cents: z.number().int().nonnegative().optional(),
   price_max_cents: z.number().int().nonnegative().optional(),
