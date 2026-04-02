@@ -1,7 +1,7 @@
 "use client";
 
-/** Admin bilan Telegram orqali bog‘lanish (@salomov2502). */
-const ADMIN_TG = "https://t.me/salomov2502";
+/** Admin bilan Telegram orqali bog‘lanish (@Salomov_2502). */
+const ADMIN_TG = "https://t.me/Salomov_2502";
 
 export function AdminTelegramFab() {
   return (

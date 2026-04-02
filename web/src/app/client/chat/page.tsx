@@ -1,27 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { loadWebApp } from "@/lib/twa";
-import { getBestEffortLatLng } from "@/lib/geo";
-import { FALLBACK_REGION_LAT, FALLBACK_REGION_LNG } from "@/lib/worker-defaults";
 import { apiJson, apiForm } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
 import { motion, AnimatePresence } from "framer-motion";
 import { hapticSuccess } from "@/lib/haptic";
-
-const MiniMapPicker = dynamic(
-  () => import("@/components/map/MiniMapPicker").then((m) => ({ default: m.MiniMapPicker })),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="min-h-[200px] rounded-xl bg-white/5 border border-white/10 animate-pulse" />
-    ),
-  }
-);
 
 type ThreadMsg = { role: "user" | "assistant"; content: string };
 
@@ -88,10 +75,6 @@ export default function ClientChatPage() {
   const [readyToMatch, setReadyToMatch] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hydrating, setHydrating] = useState(true);
-  const [locLoading, setLocLoading] = useState(false);
-  const [pickLat, setPickLat] = useState(FALLBACK_REGION_LAT);
-  const [pickLng, setPickLng] = useState(FALLBACK_REGION_LNG);
-  const [addressLine, setAddressLine] = useState("");
   const [pendingImagePath, setPendingImagePath] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -109,18 +92,6 @@ export default function ClientChatPage() {
     } else {
       setLastAi(null);
       setReadyToMatch(false);
-    }
-    if (d.address?.trim()) {
-      setAddressLine((prev) => prev || d.address!.split(" · ")[0]!.slice(0, 420));
-    }
-    if (
-      typeof d.client_lat === "number" &&
-      typeof d.client_lng === "number" &&
-      Number.isFinite(d.client_lat) &&
-      Number.isFinite(d.client_lng)
-    ) {
-      setPickLat(d.client_lat);
-      setPickLng(d.client_lng);
     }
     try {
       sessionStorage.setItem(DRAFT_STORAGE, d.id);
@@ -162,6 +133,17 @@ export default function ClientChatPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- faqat mount
   }, []);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        void loadDraft(requestId);
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestId]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -248,64 +230,20 @@ export default function ClientChatPage() {
     setLoading(false);
     if (r.ok && r.data) {
       const rid = r.data.requestId;
+      const questions = r.data.ai.questions ?? [];
+      const canMatch = Boolean(r.data.readyToMatch) && questions.length === 0;
       setRequestId(rid);
       setLastAi(r.data.ai);
       setUsedOpenAi(r.data.usedOpenAi);
-      setReadyToMatch(Boolean(r.data.readyToMatch));
+      setReadyToMatch(canMatch);
       setText("");
       setPendingImagePath(null);
       await loadDraft(rid);
+      if (canMatch && rid) {
+        hapticSuccess();
+        router.replace(`/client/workers?requestId=${encodeURIComponent(rid)}`);
+      }
     }
-  };
-
-  const submitReq = async () => {
-    if (!requestId) return;
-    setLoading(true);
-    const r = await apiJson(`/api/requests/${requestId}/submit`, { method: "POST" });
-    setLoading(false);
-    if (r.ok) {
-      hapticSuccess();
-      router.push(`/client/workers?requestId=${requestId}`);
-    }
-  };
-
-  /** Draft bo‘lsa ham ustalar ro‘yxati ochiladi (reyting va mos xizmat bo‘yicha). */
-  const quickToWorkers = () => {
-    if (!requestId) return;
-    router.push(`/client/workers?requestId=${requestId}`);
-  };
-
-  const applyGpsToMap = async () => {
-    setLocLoading(true);
-    const g = await getBestEffortLatLng();
-    setLocLoading(false);
-    if (g) {
-      setPickLat(g.lat);
-      setPickLng(g.lng);
-    } else {
-      window.alert("Joylashuv olinmadi. Xaritadan nuqtani bosing yoki belgini suring.");
-    }
-  };
-
-  const saveLoc = async () => {
-    if (!requestId) return;
-    setLocLoading(true);
-    const lat = pickLat;
-    const lng = pickLng;
-    const manual = addressLine.trim();
-    const address = manual
-      ? `${manual.slice(0, 420)} · ${lat.toFixed(5)}, ${lng.toFixed(5)}`.slice(0, 500)
-      : `${lat.toFixed(5)}, ${lng.toFixed(5)} — xarita`;
-    await apiJson(`/api/requests/${requestId}/location`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        lat,
-        lng,
-        address,
-      }),
-    });
-    setLocLoading(false);
-    await loadDraft(requestId);
   };
 
   return (
@@ -314,8 +252,8 @@ export default function ClientChatPage() {
       <header className="mb-3">
         <h1 className="text-lg font-bold gradient-text">Dispetcher AI</h1>
         <p className="text-xs text-white/50">
-          Muammoingizni yozing — mos santex/elektr ustalar reyting bo‘yicha chiqadi. Suhbat
-          saqlanadi.
+          Muammoingizni yozing — tayyor bo‘lganda mos ustalar reyting bo‘yicha ro‘yxat ochiladi.
+          Suhbat saqlanadi.
         </p>
         {usedOpenAi !== null && (
           <p
@@ -329,9 +267,7 @@ export default function ClientChatPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto no-scrollbar space-y-3 pb-4">
-        {hydrating && (
-          <p className="text-xs text-white/40">Suhbat yuklanmoqda…</p>
-        )}
+        {hydrating && <p className="text-xs text-white/40">Suhbat yuklanmoqda…</p>}
         <AnimatePresence>
           {thread
             .filter((m) => m.role === "user")
@@ -367,14 +303,9 @@ export default function ClientChatPage() {
                 </ul>
               )}
               {readyToMatch && lastAi.questions.length === 0 && requestId && (
-                <div className="flex flex-col gap-2 pt-1">
-                  <PrimaryButton className="!py-2 !text-xs w-full" onClick={quickToWorkers}>
-                    Ustalarni ko‘rish (reyting bo‘yicha)
-                  </PrimaryButton>
-                  <p className="text-[10px] text-white/35 text-center">
-                    Yoki avval manzilni tasdiqlang, keyin «So‘rovni tasdiqlash».
-                  </p>
-                </div>
+                <p className="text-[11px] text-cyan-200/80 pt-1">
+                  Ustalar ro‘yxati ochilmoqda…
+                </p>
               )}
               <div className="flex flex-wrap gap-1 pt-1">
                 {lastAi.tags.map((t) => (
@@ -434,64 +365,17 @@ export default function ClientChatPage() {
         </div>
         <textarea
           className="w-full min-h-[88px] rounded-xl bg-black/35 border border-white/10 px-3 py-2 text-sm outline-none focus:border-cyan-400/40 resize-none"
-          placeholder="Masalan: Kanalizatsiya oqmayapti, yordam kerak…"
+          placeholder="Masalan: Elektrik kerak, rozetka ta’mirlash…"
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
-        <div className="flex gap-2">
-          <PrimaryButton
-            className="flex-1"
-            disabled={loading || hydrating || (!text.trim() && !pendingImagePath)}
-            onClick={send}
-          >
-            {loading ? "Kutilmoqda…" : "Yuborish"}
-          </PrimaryButton>
-        </div>
-        {requestId && (
-          <div className="space-y-2 pt-1">
-            <p className="text-[11px] text-white/40">
-              Manzil va nuqta (OpenStreetMap — bosing yoki belgini suring)
-            </p>
-            <MiniMapPicker
-              lat={pickLat}
-              lng={pickLng}
-              onChange={(la, ln) => {
-                setPickLat(la);
-                setPickLng(ln);
-              }}
-            />
-            <p className="text-[10px] text-white/35 font-mono">
-              {pickLat.toFixed(5)}, {pickLng.toFixed(5)}
-            </p>
-            <input
-              className="w-full rounded-xl bg-black/35 border border-white/10 px-3 py-2 text-sm outline-none focus:border-cyan-400/40"
-              placeholder="Masalan: Yunusobod, Amir Temur ko‘chasi 12-uy, 45-xonadon"
-              value={addressLine}
-              onChange={(e) => setAddressLine(e.target.value)}
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                disabled={locLoading}
-                className="rounded-xl bg-white/5 border border-white/10 py-2 text-xs disabled:opacity-50"
-                onClick={() => void applyGpsToMap()}
-              >
-                {locLoading ? "…" : "GPS → xarita"}
-              </button>
-              <button
-                type="button"
-                disabled={locLoading}
-                className="rounded-xl bg-white/5 border border-white/10 py-2 text-xs disabled:opacity-50"
-                onClick={() => void saveLoc()}
-              >
-                {locLoading ? "Saqlanmoqda…" : "Manzilni saqlash"}
-              </button>
-            </div>
-            <PrimaryButton className="!py-2 !text-xs w-full" onClick={submitReq}>
-              So‘rovni tasdiqlash
-            </PrimaryButton>
-          </div>
-        )}
+        <PrimaryButton
+          className="w-full"
+          disabled={loading || hydrating || (!text.trim() && !pendingImagePath)}
+          onClick={send}
+        >
+          {loading ? "Kutilmoqda…" : "Yuborish"}
+        </PrimaryButton>
       </GlassCard>
     </div>
   );

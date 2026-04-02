@@ -23,11 +23,26 @@ export default function ClientOrdersPage() {
     });
   }, []);
 
+  const fetchOrders = async () => {
+    const r = await apiJson<{ orders: Row[] }>("/api/orders");
+    if (r.ok && r.data) setRows(r.data.orders);
+  };
+
   useEffect(() => {
-    (async () => {
-      const r = await apiJson<{ orders: Row[] }>("/api/orders");
-      if (r.ok && r.data) setRows(r.data.orders);
-    })();
+    void fetchOrders();
+  }, []);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") void fetchOrders();
+    };
+    const onShow = () => void fetchOrders();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pageshow", onShow);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pageshow", onShow);
+    };
   }, []);
 
   return (

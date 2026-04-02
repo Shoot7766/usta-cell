@@ -29,10 +29,15 @@ export default function ClientProfilePage() {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [depLoading, setDepLoading] = useState(false);
+  const [tgAvatarUrl, setTgAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     void loadWebApp().then((WebApp) => {
       WebApp.BackButton.hide();
+      const u = WebApp.initDataUnsafe?.user as { photo_url?: string } | undefined;
+      if (u?.photo_url && typeof u.photo_url === "string") {
+        setTgAvatarUrl(u.photo_url);
+      }
     });
   }, []);
 
@@ -43,6 +48,14 @@ export default function ClientProfilePage() {
 
   useEffect(() => {
     void refresh();
+  }, []);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
 
   const deposit = async (amountCents: number) => {
@@ -99,9 +112,32 @@ export default function ClientProfilePage() {
               ))}
             </div>
           </GlassCard>
-          <GlassCard className="p-4 mb-4 space-y-1">
-            <p className="text-sm text-white">{me.user.displayName || "—"}</p>
-            <p className="text-xs text-white/50">{me.user.phone || "—"}</p>
+          <GlassCard className="p-4 mb-4 space-y-3">
+            <div className="flex items-center gap-3">
+              {tgAvatarUrl ? (
+                // Telegram CDN — tashqi URL, next/image domen ro‘yxati talab qiladi
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={tgAvatarUrl}
+                  alt=""
+                  className="h-16 w-16 rounded-full object-cover border border-white/15 shrink-0"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="h-16 w-16 rounded-full bg-white/10 border border-white/15 shrink-0 flex items-center justify-center text-xl text-white/40">
+                  {(me.user.displayName || "?").slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <div className="space-y-1 min-w-0">
+                <p className="text-sm text-white font-medium truncate">
+                  {me.user.displayName || "—"}
+                </p>
+                <p className="text-[10px] text-white/40">
+                  {tgAvatarUrl ? "Telegram avatar" : "Avatar Telegramda yo‘q yoki brauzerda ko‘rinmaydi"}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-white/50 pt-1 border-t border-white/10">{me.user.phone || "—"}</p>
             <p className="text-xs text-white/45">
               Rol: <span className="text-neon">{me.user.role}</span>
             </p>

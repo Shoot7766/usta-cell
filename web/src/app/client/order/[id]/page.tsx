@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { loadWebApp } from "@/lib/twa";
 import { apiJson } from "@/lib/api-client";
@@ -11,6 +12,18 @@ import { motion } from "framer-motion";
 import { hapticSuccess } from "@/lib/haptic";
 import { PAYMENT_METHOD_UZ, PAYMENT_STATUS_UZ } from "@/lib/payment-labels";
 import { openPrintableContract } from "@/lib/contract-print";
+import { getBestEffortLatLng } from "@/lib/geo";
+import { FALLBACK_REGION_LAT, FALLBACK_REGION_LNG } from "@/lib/worker-defaults";
+
+const MiniMapPicker = dynamic(
+  () => import("@/components/map/MiniMapPicker").then((m) => ({ default: m.MiniMapPicker })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-[200px] rounded-xl bg-white/5 border border-white/10 animate-pulse" />
+    ),
+  }
+);
 
 const steps = [
   { key: "new", label: "Yangi" },
@@ -21,6 +34,7 @@ const steps = [
 
 type OrderPayload = {
   status: string;
+  request_id?: string;
   price_cents?: number;
   payment_method?: string;
   payment_status?: string;
@@ -30,6 +44,8 @@ type OrderPayload = {
     summary?: string | null;
     category?: string | null;
     address?: string | null;
+    client_lat?: number | null;
+    client_lng?: number | null;
   } | null;
 };
 
@@ -53,6 +69,11 @@ export default function ClientOrderPage() {
   const [workerConfirmedPrice, setWorkerConfirmedPrice] = useState(false);
   const [workerName, setWorkerName] = useState("");
   const [contractAddress, setContractAddress] = useState("");
+  const [orderRequestId, setOrderRequestId] = useState<string | null>(null);
+  const [pickLat, setPickLat] = useState(FALLBACK_REGION_LAT);
+  const [pickLng, setPickLng] = useState(FALLBACK_REGION_LNG);
+  const [addrLineOrder, setAddrLineOrder] = useState("");
+  const [locBusy, setLocBusy] = useState(false);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -88,6 +109,23 @@ export default function ClientOrderPage() {
     }
     setWorkerName(o.worker?.display_name?.trim() || "");
     setContractAddress(rq?.address?.trim() ? String(rq.address) : "");
+    if (typeof o.request_id === "string" && o.request_id) {
+      setOrderRequestId(o.request_id);
+    }
+    if (
+      rq &&
+      typeof rq.client_lat === "number" &&
+      typeof rq.client_lng === "number" &&
+      Number.isFinite(rq.client_lat) &&
+      Number.isFinite(rq.client_lng)
+    ) {
+      setPickLat(rq.client_lat);
+      setPickLng(rq.client_lng);
+    }
+    if (rq?.address?.trim()) {
+      const first = String(rq.address).split(" · ")[0] ?? "";
+      setAddrLineOrder((prev) => prev || first.slice(0, 420));
+    }
   };
 
   const load = async () => {
@@ -156,6 +194,36 @@ export default function ClientOrderPage() {
       body: JSON.stringify({ orderId: id, reason }),
     });
     await load();
+  };
+
+  const applyGpsOrderMap = async () => {
+    setLocBusy(true);
+    const g = await getBestEffortLatLng();
+    setLocBusy(false);
+    if (g) {
+      setPickLat(g.lat);
+      setPickLng(g.lng);
+    } else {
+      window.alert("GPS olinmadi. Xaritadan nuqtani tanlang.");
+    }
+  };
+
+  const saveOrderLocation = async () => {
+    if (!orderRequestId) return;
+    setLocBusy(true);
+    const manual = addrLineOrder.trim();
+    const address = manual
+      ? `${manual.slice(0, 420)} · ${pickLat.toFixed(5)}, ${pickLng.toFixed(5)}`.slice(0, 500)
+      : `${pickLat.toFixed(5)}, ${pickLng.toFixed(5)} — xarita`;
+    const r = await apiJson(`/api/requests/${orderRequestId}/location`, {
+      method: "PATCH",
+      body: JSON.stringify({ lat: pickLat, lng: pickLng, address }),
+    });
+    setLocBusy(false);
+    if (r.ok) {
+      hapticSuccess();
+      load();
+    } else if (r.error) window.alert(r.error);
   };
 
   const saveAgreedPrice = async () => {
@@ -293,6 +361,56 @@ export default function ClientOrderPage() {
           </PrimaryButton>
         </GlassCard>
       )}
+
+      {workerConfirmedPrice &&
+        orderRequestId &&
+        !["canceled", "completed"].includes(status) && (
+          <GlassCard className="p-4 mb-4 space-y-2 border border-cyan-400/15">
+            <p className="text-xs text-white/45 uppercase">Manzil</p>
+            <p className="text-[11px] text-white/50 leading-relaxed">
+              Narxdan kelishilgach — usta keladigan joyni xarita va matn bilan yuboring.
+              Ma’lumot bazada saqlanadi.
+            </p>
+            <MiniMapPicker
+              lat={pickLat}
+              lng={pickLng}
+              onChange={(la, ln) => {
+                setPickLat(la);
+                setPickLng(ln);
+              }}
+            />
+            <p className="text-[10px] text-white/35 font-mono">
+              {pickLat.toFixed(5)}, {pickLng.toFixed(5)}
+            </p>
+            <input
+              className="w-full rounded-xl bg-black/35 border border-white/10 px-3 py-2 text-sm outline-none focus:border-cyan-400/40"
+              placeholder="Ko‘cha, uy, xonadon…"
+              value={addrLineOrder}
+              onChange={(e) => setAddrLineOrder(e.target.value)}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={locBusy}
+                className="rounded-xl bg-white/5 border border-white/10 py-2 text-xs disabled:opacity-50"
+                onClick={() => void applyGpsOrderMap()}
+              >
+                {locBusy ? "…" : "GPS → xarita"}
+              </button>
+              <button
+                type="button"
+                disabled={locBusy}
+                className="rounded-xl bg-white/5 border border-white/10 py-2 text-xs disabled:opacity-50"
+                onClick={() => void saveOrderLocation()}
+              >
+                {locBusy ? "…" : "Manzilni saqlash"}
+              </button>
+            </div>
+            {contractAddress && (
+              <p className="text-[10px] text-emerald-300/85">Saqlangan: {contractAddress}</p>
+            )}
+          </GlassCard>
+        )}
 
       <GlassCard className="p-4 mb-4 space-y-2">
         <p className="text-xs text-white/45 uppercase">To‘lov</p>
