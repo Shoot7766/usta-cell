@@ -18,25 +18,23 @@ type Me = {
     displayName?: string | null;
     phone?: string | null;
   };
-  workerProfile?: {
-    services: string[];
-    lat: number | null;
-    lng: number | null;
-    priceMinCents: number;
-    priceMaxCents: number;
-  } | null;
 };
+
+/** Ish rejasi formasisiz: tizim standart usta parametrlarini yuboradi. */
+const DEFAULT_WORKER_PATCH = {
+  services: ["Umumiy ustachilik"],
+  lat: 41.3111,
+  lng: 69.2797,
+  priceMinCents: 50_000,
+  priceMaxCents: 500_000,
+  isAvailable: true,
+} as const;
 
 export default function OnboardingWorkerPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
-  const [services, setServices] = useState("Elektrik, Santexnika");
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
-  const [pMin, setPMin] = useState("50000");
-  const [pMax, setPMax] = useState("500000");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -77,18 +75,6 @@ export default function OnboardingWorkerPage() {
       if (u.displayName?.trim()) setDisplayName(u.displayName.trim());
       else if (suggested) setDisplayName(suggested);
       if (u.phone) setPhone(u.phone);
-      const wp = r.data.workerProfile;
-      if (wp?.services?.length) {
-        setServices(wp.services.join(", "));
-      }
-      if (wp?.lat != null) setLat(String(wp.lat));
-      if (wp?.lng != null) setLng(String(wp.lng));
-      if (wp?.priceMinCents != null && wp.priceMinCents > 0) {
-        setPMin(String(wp.priceMinCents));
-      }
-      if (wp?.priceMaxCents != null && wp.priceMaxCents > 0) {
-        setPMax(String(wp.priceMaxCents));
-      }
       setReady(true);
     })();
   }, [router]);
@@ -100,12 +86,7 @@ export default function OnboardingWorkerPage() {
       body: JSON.stringify({
         displayName,
         phone,
-        services: services.split(",").map((s) => s.trim()).filter(Boolean),
-        lat: parseFloat(lat || "41.31"),
-        lng: parseFloat(lng || "69.24"),
-        priceMinCents: parseInt(pMin, 10) || 0,
-        priceMaxCents: parseInt(pMax, 10) || 0,
-        isAvailable: true,
+        ...DEFAULT_WORKER_PATCH,
       }),
     });
     setSaving(false);
@@ -131,8 +112,8 @@ export default function OnboardingWorkerPage() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-xl font-bold gradient-text mb-1">Usta profili</h1>
         <p className="text-sm text-white/55 mb-4">
-          Xizmatlar, joylashuv va narx oralig‘ini to‘liq kiriting — shundan keyin
-          buyurtmalar ochiladi.
+          Ism va telefonni tekshiring. Joylashuv va narx oralig‘i tizimda standart
+          qiymatlar bilan to‘ldiriladi.
         </p>
 
         <GlassCard className="p-4 mb-4 space-y-3">
@@ -151,46 +132,6 @@ export default function OnboardingWorkerPage() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
-        </GlassCard>
-
-        <GlassCard className="p-4 mb-4 space-y-3">
-          <p className="text-xs text-white/45 uppercase tracking-wider">
-            Ish rejasi
-          </p>
-          <input
-            className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-            placeholder="Xizmatlar (vergul bilan)"
-            value={services}
-            onChange={(e) => setServices(e.target.value)}
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              className="rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-              placeholder="Kenglik (lat)"
-              value={lat}
-              onChange={(e) => setLat(e.target.value)}
-            />
-            <input
-              className="rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-              placeholder="Uzunlik (lng)"
-              value={lng}
-              onChange={(e) => setLng(e.target.value)}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              className="rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-              placeholder="Min narx (so‘m)"
-              value={pMin}
-              onChange={(e) => setPMin(e.target.value)}
-            />
-            <input
-              className="rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-              placeholder="Max narx (so‘m)"
-              value={pMax}
-              onChange={(e) => setPMax(e.target.value)}
-            />
-          </div>
           <PrimaryButton disabled={saving} onClick={() => void saveWorker()}>
             {saving ? "Saqlanmoqda…" : "Saqlash va davom etish"}
           </PrimaryButton>

@@ -88,19 +88,24 @@ export default function OnboardingPage() {
     })();
   }, []);
 
-  useEffect(() => {
-    if (!me) return;
-    if (me.user.role === "worker" && !me.user.workerProfileOk) {
-      void router.replace("/onboarding/worker");
-    }
-  }, [me, router]);
-
   const saveBase = async () => {
+    const workerDefaults =
+      me?.user.role === "worker" && !me.user.workerProfileOk
+        ? {
+            services: ["Umumiy ustachilik"],
+            lat: 41.3111,
+            lng: 69.2797,
+            priceMinCents: 50_000,
+            priceMaxCents: 500_000,
+            isAvailable: true as const,
+          }
+        : {};
     await apiJson("/api/user/profile", {
       method: "PATCH",
       body: JSON.stringify({
         displayName,
         phone,
+        ...workerDefaults,
       }),
     });
     await refresh();
@@ -134,13 +139,6 @@ export default function OnboardingPage() {
   }
 
   const role = me.user.role;
-  if (role === "worker" && !me.user.workerProfileOk) {
-    return (
-      <div className="min-h-dvh p-5 flex items-center justify-center text-white/60">
-        Usta profili ochilmoqda…
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28 safe-pb">
@@ -156,7 +154,7 @@ export default function OnboardingPage() {
           <div className="flex gap-2">
             <button
               type="button"
-              disabled={roleLoading || role === "client"}
+              disabled={roleLoading}
               className="flex-1 rounded-xl bg-white/5 border border-white/10 py-2 text-sm disabled:opacity-40"
               onClick={() => void switchRole("client")}
             >
@@ -164,7 +162,7 @@ export default function OnboardingPage() {
             </button>
             <button
               type="button"
-              disabled={roleLoading || role === "worker"}
+              disabled={roleLoading}
               className="flex-1 rounded-xl bg-white/5 border border-white/10 py-2 text-sm disabled:opacity-40"
               onClick={() => void switchRole("worker")}
             >
