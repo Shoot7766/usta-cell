@@ -3,6 +3,10 @@ import { z } from "zod";
 import { requireSession } from "@/lib/api-auth";
 import { getServiceSupabase } from "@/lib/supabase/admin";
 import { applyNoShowIfNeeded } from "@/lib/order-lifecycle";
+import {
+  clientUserTextFromConversation,
+  lastImageCaptionFromConversation,
+} from "@/lib/request-conversation";
 
 const Params = z.object({ id: z.string().uuid() });
 
@@ -90,12 +94,19 @@ export async function GET(
     clientIssueImageUrl = signed?.signedUrl ?? null;
   }
 
+  const reqRow = o.requests as { conversation?: unknown } | null | undefined;
+  const conv = reqRow?.conversation;
+  const clientJobText = clientUserTextFromConversation(conv);
+  const clientJobImageCaption = lastImageCaptionFromConversation(conv);
+
   return NextResponse.json({
     order: {
       ...o,
       client: c,
       worker: workerOut,
       client_issue_image_url: clientIssueImageUrl,
+      client_job_text: clientJobText,
+      client_job_image_caption: clientJobImageCaption,
     },
     events: events ?? [],
   });

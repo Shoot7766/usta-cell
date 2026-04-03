@@ -12,8 +12,9 @@ export default function WorkerOrderPage() {
   const router = useRouter();
   const [status, setStatus] = useState("new");
   const [requestId, setRequestId] = useState<string | null>(null);
-  const [priceCents, setPriceCents] = useState(0);
   const [clientIssueImageUrl, setClientIssueImageUrl] = useState<string | null>(null);
+  const [clientJobText, setClientJobText] = useState("");
+  const [clientJobImageCaption, setClientJobImageCaption] = useState<string | null>(null);
   const [decisionDeadlineAt, setDecisionDeadlineAt] = useState<string | null>(null);
   const [remainingSec, setRemainingSec] = useState<number | null>(null);
   const [clientName, setClientName] = useState<string | null>(null);
@@ -41,8 +42,9 @@ export default function WorkerOrderPage() {
       order: {
         status: string;
         request_id: string;
-        price_cents?: number;
         client_issue_image_url?: string | null;
+        client_job_text?: string | null;
+        client_job_image_caption?: string | null;
         worker_decision_deadline_at?: string | null;
         client?: {
           display_name?: string | null;
@@ -63,13 +65,14 @@ export default function WorkerOrderPage() {
       setClientPhone(ph || null);
       const un = cl?.username?.trim();
       setClientUsername(un && !un.startsWith("@") ? `@${un}` : un || null);
-      if (typeof r.data.order.price_cents === "number") {
-        setPriceCents(r.data.order.price_cents);
-      }
       const imgUrl = r.data.order.client_issue_image_url;
       setClientIssueImageUrl(
         typeof imgUrl === "string" && imgUrl.startsWith("http") ? imgUrl : null
       );
+      const jt = r.data.order.client_job_text;
+      setClientJobText(typeof jt === "string" ? jt.trim() : "");
+      const cap = r.data.order.client_job_image_caption;
+      setClientJobImageCaption(typeof cap === "string" && cap.trim() ? cap.trim() : null);
     }
   };
 
@@ -160,6 +163,14 @@ export default function WorkerOrderPage() {
     <div className="min-h-dvh px-4 pt-4 pb-28 space-y-3">
       <TwaShell />
       <h1 className="text-lg font-bold gradient-text">Buyurtma</h1>
+      {clientJobText ? (
+        <GlassCard className="p-4 space-y-2 border border-white/10">
+          <p className="text-[11px] uppercase text-white/40">Mijoz yozgani</p>
+          <p className="text-sm text-white/90 whitespace-pre-wrap break-words leading-relaxed">
+            {clientJobText}
+          </p>
+        </GlassCard>
+      ) : null}
       {clientIssueImageUrl && (
         <GlassCard className="p-4 space-y-2 border border-cyan-400/20">
           <p className="text-[11px] uppercase text-white/40">Mijoz yuborgan rasm</p>
@@ -170,6 +181,13 @@ export default function WorkerOrderPage() {
             className="w-full max-h-64 rounded-xl object-contain border border-white/10 bg-black/30"
             referrerPolicy="no-referrer"
           />
+          {clientJobImageCaption &&
+            clientJobText.trim() !== clientJobImageCaption.trim() &&
+            !clientJobText.includes(clientJobImageCaption.trim()) && (
+              <p className="text-xs text-white/80 whitespace-pre-wrap break-words">
+                {clientJobImageCaption}
+              </p>
+            )}
         </GlassCard>
       )}
       {status === "pending_worker" && (
@@ -188,10 +206,13 @@ export default function WorkerOrderPage() {
               {String(remainingSec % 60).padStart(2, "0")}
             </p>
           )}
-          {(clientName || clientPhone) && (
+          {(clientName || clientPhone || clientUsername) && (
             <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 space-y-1">
               <p className="text-[10px] uppercase text-white/40">Mijoz</p>
               {clientName && <p className="text-sm text-white/90">{clientName}</p>}
+              {clientUsername && (
+                <p className="text-sm text-white/85 font-mono">Telegram: {clientUsername}</p>
+              )}
               {clientPhone && (
                 <a href={`tel:${clientPhone}`} className="text-sm text-cyan-300 underline">
                   {clientPhone}
@@ -225,9 +246,6 @@ export default function WorkerOrderPage() {
                     : status === "canceled"
                       ? "Bekor / rad etilgan"
                       : status}
-        </p>
-        <p className="text-xs text-white/55">
-          Taxminiy summa: <strong>{priceCents.toLocaleString()} so‘m</strong>
         </p>
       </GlassCard>
       {["accepted", "in_progress", "completed"].includes(status) &&
