@@ -84,7 +84,6 @@ export async function POST(req: NextRequest) {
   });
   const assistantLine = [
     ai.summary,
-    ai.reasoning?.trim() ? `Tahlil: ${ai.reasoning.trim()}` : "",
     ai.questions.length ? `Savollar: ${ai.questions.join(" | ")}` : "",
   ]
     .filter(Boolean)
@@ -95,7 +94,6 @@ export async function POST(req: NextRequest) {
     urgency: ai.urgency,
     tags: ai.tags,
     questions: ai.questions,
-    reasoning: ai.reasoning ?? "",
     price_min_cents: ai.price_min_cents,
     price_max_cents: ai.price_max_cents,
   };
@@ -125,7 +123,6 @@ export async function POST(req: NextRequest) {
       urgency: ai.urgency,
       questions: ai.questions,
       summary: ai.summary,
-      reasoning: ai.reasoning ?? "",
       tags: ai.tags,
       price_min_cents: ai.price_min_cents,
       price_max_cents: ai.price_max_cents,

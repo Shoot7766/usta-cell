@@ -7,27 +7,18 @@ import { apiJson } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
-import { PAYMENT_METHOD_UZ, PAYMENT_STATUS_UZ } from "@/lib/payment-labels";
-
 export default function WorkerOrderPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [status, setStatus] = useState("new");
   const [requestId, setRequestId] = useState<string | null>(null);
   const [priceCents, setPriceCents] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [paymentStatus, setPaymentStatus] = useState("pending");
-  const [payLoading, setPayLoading] = useState(false);
-  const [payoutReleased, setPayoutReleased] = useState(false);
-  const [reqLine, setReqLine] = useState("");
-  const [workerPriceOk, setWorkerPriceOk] = useState(false);
-  const [confirmPriceBusy, setConfirmPriceBusy] = useState(false);
-  const [contractNumber, setContractNumber] = useState<string | null>(null);
   const [clientIssueImageUrl, setClientIssueImageUrl] = useState<string | null>(null);
   const [decisionDeadlineAt, setDecisionDeadlineAt] = useState<string | null>(null);
   const [remainingSec, setRemainingSec] = useState<number | null>(null);
   const [clientName, setClientName] = useState<string | null>(null);
   const [clientPhone, setClientPhone] = useState<string | null>(null);
+  const [clientUsername, setClientUsername] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -51,16 +42,15 @@ export default function WorkerOrderPage() {
         status: string;
         request_id: string;
         price_cents?: number;
-        payment_method?: string;
-        payment_status?: string;
-        payout_released?: boolean;
-        contract_number?: string | null;
         client_issue_image_url?: string | null;
         worker_decision_deadline_at?: string | null;
-        client?: { display_name?: string | null; phone?: string | null } | null;
+        client?: {
+          display_name?: string | null;
+          phone?: string | null;
+          username?: string | null;
+        } | null;
         requests?: { summary?: string | null; category?: string | null } | null;
       };
-      events: { event_type: string }[];
     }>(`/api/orders/${id}`);
     if (r.ok && r.data) {
       setStatus(r.data.order.status);
@@ -71,25 +61,11 @@ export default function WorkerOrderPage() {
       setClientName(cl?.display_name?.trim() || null);
       const ph = cl?.phone?.trim();
       setClientPhone(ph || null);
+      const un = cl?.username?.trim();
+      setClientUsername(un && !un.startsWith("@") ? `@${un}` : un || null);
       if (typeof r.data.order.price_cents === "number") {
         setPriceCents(r.data.order.price_cents);
       }
-      if (r.data.order.payment_method) setPaymentMethod(r.data.order.payment_method);
-      if (r.data.order.payment_status) setPaymentStatus(r.data.order.payment_status);
-      if (typeof r.data.order.payout_released === "boolean") {
-        setPayoutReleased(r.data.order.payout_released);
-      }
-      const cn = r.data.order.contract_number;
-      if (typeof cn === "string" && cn.trim()) setContractNumber(cn.trim());
-      const rq = r.data.order.requests;
-      if (rq && (rq.summary || rq.category)) {
-        setReqLine([rq.category, rq.summary].filter(Boolean).join(" — "));
-      } else {
-        setReqLine("");
-      }
-      setWorkerPriceOk(
-        r.data.events.some((e) => e.event_type === "worker_confirmed_agreed_price")
-      );
       const imgUrl = r.data.order.client_issue_image_url;
       setClientIssueImageUrl(
         typeof imgUrl === "string" && imgUrl.startsWith("http") ? imgUrl : null
@@ -125,15 +101,8 @@ export default function WorkerOrderPage() {
     es.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data) as {
-          order?: {
-            payout_released?: boolean;
-            status?: string;
-            worker_decision_deadline_at?: string | null;
-          };
+          order?: { status?: string; worker_decision_deadline_at?: string | null };
         };
-        if (typeof msg?.order?.payout_released === "boolean") {
-          setPayoutReleased(msg.order.payout_released);
-        }
         if (msg?.order?.status) setStatus(msg.order.status);
         const w = msg?.order?.worker_decision_deadline_at;
         if (typeof w === "string" && w) setDecisionDeadlineAt(w);
@@ -187,36 +156,10 @@ export default function WorkerOrderPage() {
     load();
   };
 
-  const confirmPayment = async () => {
-    setPayLoading(true);
-    await apiJson(`/api/orders/${id}/payment`, {
-      method: "PATCH",
-      body: JSON.stringify({ paymentStatus: "confirmed" }),
-    });
-    setPayLoading(false);
-    load();
-  };
-
-  const confirmAgreedPrice = async () => {
-    setConfirmPriceBusy(true);
-    const r = await apiJson(`/api/orders/${id}/agreed-price`, {
-      method: "POST",
-      body: JSON.stringify({ confirm: true }),
-    });
-    setConfirmPriceBusy(false);
-    if (r.ok) load();
-    else if (r.error) window.alert(r.error);
-  };
-
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28 space-y-3">
       <TwaShell />
       <h1 className="text-lg font-bold gradient-text">Buyurtma</h1>
-      {contractNumber && (
-        <p className="text-[11px] text-cyan-200/90 font-mono mb-2">
-          Shartnoma: <span className="text-white">{contractNumber}</span>
-        </p>
-      )}
       {clientIssueImageUrl && (
         <GlassCard className="p-4 space-y-2 border border-cyan-400/20">
           <p className="text-[11px] uppercase text-white/40">Mijoz yuborgan rasm</p>
@@ -227,30 +170,6 @@ export default function WorkerOrderPage() {
             className="w-full max-h-64 rounded-xl object-contain border border-white/10 bg-black/30"
             referrerPolicy="no-referrer"
           />
-        </GlassCard>
-      )}
-      {reqLine && (
-        <GlassCard className="p-4 space-y-2 border border-white/10">
-          <p className="text-[11px] uppercase text-white/40">Kelishuv</p>
-          <p className="text-sm text-white/85">{reqLine}</p>
-          <p className="text-xs text-white/60">
-            Ko‘rsatilgan narx:{" "}
-            <strong className="text-neon">{priceCents.toLocaleString()} so‘m</strong>
-          </p>
-          {workerPriceOk ? (
-            <p className="text-xs text-emerald-300/90">Siz narxdan rozisiz (yozuv qayd etildi).</p>
-          ) : (
-            ["new", "pending_worker", "accepted"].includes(status) &&
-            priceCents > 0 && (
-              <PrimaryButton
-                className="!py-2 !text-xs w-full"
-                disabled={confirmPriceBusy}
-                onClick={() => void confirmAgreedPrice()}
-              >
-                {confirmPriceBusy ? "…" : "Telefonda kelishilgan narxdan roziman"}
-              </PrimaryButton>
-            )
-          )}
         </GlassCard>
       )}
       {status === "pending_worker" && (
@@ -308,59 +227,51 @@ export default function WorkerOrderPage() {
                       : status}
         </p>
         <p className="text-xs text-white/55">
-          Summa: <strong>{priceCents.toLocaleString()} so‘m</strong>
+          Taxminiy summa: <strong>{priceCents.toLocaleString()} so‘m</strong>
         </p>
-        <p className="text-xs text-white/55">
-          To‘lov: {PAYMENT_METHOD_UZ[paymentMethod] ?? paymentMethod} ·{" "}
-          {PAYMENT_STATUS_UZ[paymentStatus] ?? paymentStatus}
-        </p>
-        {status === "completed" && !payoutReleased && (
-          <p className="text-[11px] text-amber-200/85 leading-relaxed">
-            Mijoz to‘lovni tasdiqlaguncha kuting (mini-ilovada «Pulni ustaga o‘tkazish»).
-          </p>
-        )}
-        {status === "completed" && payoutReleased && (
-          <p className="text-[11px] text-emerald-300/90">
-            Mijoz to‘lovni tasdiqladi — summa hisobingizga o‘tkazildi.
-          </p>
-        )}
       </GlassCard>
-      {status === "new" && (
-        <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={unlock}>
-          Mijoz kontakti
-        </PrimaryButton>
-      )}
-      {status === "new" && (
-        <div className="grid grid-cols-2 gap-2">
-          <PrimaryButton className="!py-2 !text-xs" onClick={() => setSt("accepted")}>
-            Qabul
-          </PrimaryButton>
-          <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={cancel}>
-            Rad
-          </PrimaryButton>
-        </div>
-      )}
-      {status === "accepted" && (
-        <PrimaryButton className="!py-2 !text-xs" onClick={() => setSt("in_progress")}>
-          Ish boshlandi
-        </PrimaryButton>
-      )}
-      {status === "in_progress" && (
-        <PrimaryButton className="!py-2 !text-xs" onClick={() => setSt("completed")}>
-          Yakunlash
-        </PrimaryButton>
-      )}
-      {["accepted", "in_progress"].includes(status) &&
-        paymentStatus === "pending" && (
-          <PrimaryButton
-            className="!py-2 !text-xs"
-            variant="ghost"
-            disabled={payLoading}
-            onClick={() => void confirmPayment()}
-          >
-            {payLoading ? "…" : "To‘lov qabul qilindi (tasdiqlash)"}
-          </PrimaryButton>
+      {["accepted", "in_progress", "completed"].includes(status) &&
+        (clientName || clientPhone || clientUsername) && (
+          <GlassCard className="p-4 space-y-2 border border-white/10">
+            <p className="text-[10px] uppercase text-white/40">Mijoz</p>
+            {clientName && <p className="text-sm text-white/90">{clientName}</p>}
+            {clientUsername && (
+              <p className="text-sm text-white/85 font-mono">Telegram: {clientUsername}</p>
+            )}
+            {clientPhone && (
+              <a href={`tel:${clientPhone}`} className="text-sm text-cyan-300 underline">
+                {clientPhone}
+              </a>
+            )}
+          </GlassCard>
         )}
+      {status === "new" && (
+        <>
+          <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={unlock}>
+            Mijoz kontakti
+          </PrimaryButton>
+          <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 space-y-1">
+            <p className="text-[10px] uppercase text-white/40">Mijoz</p>
+            {clientName && <p className="text-sm text-white/90">{clientName}</p>}
+            {clientUsername && (
+              <p className="text-sm text-white/85 font-mono">Telegram: {clientUsername}</p>
+            )}
+            {clientPhone && (
+              <a href={`tel:${clientPhone}`} className="text-sm text-cyan-300 underline">
+                {clientPhone}
+              </a>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <PrimaryButton className="!py-2 !text-xs" onClick={() => void setSt("accepted")}>
+              Qabul
+            </PrimaryButton>
+            <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={cancel}>
+              Rad
+            </PrimaryButton>
+          </div>
+        </>
+      )}
     </div>
   );
 }

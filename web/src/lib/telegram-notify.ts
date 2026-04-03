@@ -41,15 +41,13 @@ export async function notifyWorkerNewOrder(opts: {
   summary: string;
   appUrl?: string;
 }): Promise<void> {
-  const base = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
-  const link = base ? `${base}/worker/order/${opts.orderId}` : "";
   const lines = [
     "🔔 Sizga buyurtma tushdi.",
     opts.contractNumber?.trim()
       ? `Shartnoma: ${opts.contractNumber.trim().slice(0, 40)}`
       : "",
     opts.summary.trim() ? opts.summary.trim().slice(0, 280) : "",
-    link ? `Ilova: ${link}` : "Mini ilovadan «Buyurtmalar» ni oching.",
+    "Mini ilovadan «Buyurtmalar» ni oching.",
   ].filter(Boolean);
   await sendTelegramText(opts.workerTelegramId, lines.join("\n"));
 }
@@ -62,14 +60,11 @@ export async function notifyClientMarketReserved(opts: {
   workerName: string;
   summary: string;
 }): Promise<void> {
-  const base = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
-  const link = base ? `${base}/client/order/${opts.orderId}` : "";
   const lines = [
     "📌 Usta so‘rovingizni band qildi.",
     "10 daqiqa ichida u ilovada tasdiqlashi yoki rad etishi kerak.",
     opts.workerName ? `Usta: ${opts.workerName}` : "",
     opts.summary.trim() ? opts.summary.trim().slice(0, 220) : "",
-    link ? `Kuzatuv: ${link}` : "",
   ].filter(Boolean);
   await sendTelegramText(opts.clientTelegramId, lines.join("\n"));
 }
@@ -80,13 +75,11 @@ export async function notifyClientWorkerAccepted(opts: {
   workerName: string;
   summary: string;
 }): Promise<void> {
-  const base = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
-  const link = base ? `${base}/client/order/${opts.orderId}` : "";
   const lines = [
     "✅ Usta buyurtmangizni qabul qildi.",
     opts.workerName ? `Usta: ${opts.workerName}` : "",
     opts.summary.trim() ? opts.summary.trim().slice(0, 220) : "",
-    link ? `Kuzatuv: ${link}` : "Mini ilovadan «Buyurtmalar» ni oching.",
+    "Mini ilovadan «Buyurtmalar» ni oching.",
   ].filter(Boolean);
   await sendTelegramText(opts.clientTelegramId, lines.join("\n"));
 }

@@ -42,7 +42,7 @@ export async function GET(
   const [{ data: client }, { data: worker }] = await Promise.all([
     sb
       .from("users")
-      .select("id, display_name, phone")
+      .select("id, display_name, phone, username")
       .eq("id", o.client_id as string)
       .maybeSingle(),
     sb
@@ -56,6 +56,11 @@ export async function GET(
     ? {
         ...client,
         phone: clientPhoneOk ? client.phone : client.phone ? "***" : null,
+        username: clientPhoneOk
+          ? typeof client.username === "string" && client.username.trim()
+            ? client.username.trim()
+            : null
+          : null,
       }
     : null;
   const showWorkerPhone =

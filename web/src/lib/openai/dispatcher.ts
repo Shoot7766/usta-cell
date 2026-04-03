@@ -2,21 +2,18 @@ import OpenAI from "openai";
 import { AiDispatcherSchema, type AiDispatcherResult } from "../types";
 import { isLikelyClearServiceIntent } from "../ai-intent";
 
-const SYSTEM = `Siz "Usta Call" uchun dispetchersiz. Maqsad: mijoz so'rovini tahlil qilib, mos usta tanlashga tayyorlash.
+/** Chuqur «tahlil» yo‘q — faqat moslashtirish uchun qisqa maydonlar. */
+const SYSTEM = `Siz "Usta Call" uchun so'rovni sarlavha va kalit so'zlarga ajratuvchi modulsiz.
 
-QAT'IY QOIDALAR:
-1) Foydalanuvchi aniq xizmat aytsa (masalan rozetka, elektr, santexnika, plita ta'mirlash) — questions bo'sh massiv [] qiling. Ortiqcha savollar BERMANGL.
-2) Faqat haqiqatan kerak bo'lsa 1 ta qisqa savol — ko'pchilik holatda savol yo'q.
-3) JSONdan boshqa matn yo'q. Maydonlar:
-- category: xizmat turi (o'zbekcha, qisqa)
-- urgency: "low" | "medium" | "high"
-- questions: [] yoki 1 ta qisqa savol (90% holatda [])
-- summary: 1-2 jumlada xulosa
-- reasoning: 2-4 jumla — qanday mutaxassis kerak, qaysi ko'nikmalar/kalit so'zlar bo'yicha ustani qidirish kerak, nimalarga e'tibor berish (xavfsizlik, tezlik, materiallar). O'zbekcha, aniq.
-- tags: 2-8 ta kalit so'z (usta profilidagi xizmatlar bilan moslashishi mumkin)
-- price_min_cents, price_max_cents: ixtiyoriy, UZS (butun so'mda taxminiy diapazon); noma'lum bo'lsa omit
+QAT'IY:
+1) reasoning, tahlil, fikrlash, izoh paragraflari YO'Q — JSONda bunday maydon qo'shmang.
+2) Foydalanuvchi aniq xizmat aytsa — questions [].
+3) Faqat noaniq bo'lsa 1 ta qisqa savol (90% []).
+4) Faqat JSON: category, urgency, questions, summary, tags, (ixtiyoriy) price_min_cents, price_max_cents.
+5) summary: 1 qisqa jumla — nima ish kerak.
+6) tags: 3–10 ta kalit so'z (usta profilidagi xizmatlar bilan moslashishi uchun).
 
-Tezlik: savollarsiz yo'naltirish ustuvor; reasoning har doim to'ldirilsin (qisqa bo'lsa ham).`;
+Tezlik: savolsiz yo'naltirish ustuvor.`;
 
 export type DispatcherOutput = AiDispatcherResult & {
   usedOpenAi: boolean;
@@ -31,15 +28,14 @@ function normalizeAiResult(
   if (isLikelyClearServiceIntent(lastUser)) {
     questions = [];
   }
-  const merged = { ...base, questions };
+  const merged = { ...base, questions, reasoning: undefined };
   const safe = AiDispatcherSchema.safeParse(merged);
-  if (safe.success) return { ...safe.data, usedOpenAi };
+  if (safe.success) return { ...safe.data, reasoning: undefined, usedOpenAi };
   return {
     category: merged.category.slice(0, 120),
     urgency: merged.urgency,
     questions: merged.questions,
     summary: merged.summary.slice(0, 500),
-    reasoning: merged.reasoning?.slice(0, 2000),
     tags: merged.tags.slice(0, 12),
     usedOpenAi,
   };
@@ -69,10 +65,6 @@ function parseJsonToAi(raw: string): AiDispatcherResult {
       typeof (parsed as { summary?: unknown }).summary === "string"
         ? (parsed as { summary: string }).summary
         : "",
-    reasoning:
-      typeof (parsed as { reasoning?: unknown }).reasoning === "string"
-        ? (parsed as { reasoning: string }).reasoning
-        : undefined,
     tags: Array.isArray((parsed as { tags?: unknown }).tags)
       ? (parsed as { tags: string[] }).tags
       : [],
@@ -86,7 +78,6 @@ function parseJsonToAi(raw: string): AiDispatcherResult {
     urgency: base.urgency,
     questions: base.questions.slice(0, 4).map((q) => String(q).slice(0, 200)),
     summary: (base.summary || "So'rov").slice(0, 500),
-    reasoning: base.reasoning?.slice(0, 2000),
     tags: base.tags.slice(0, 12).map((t) => String(t).slice(0, 40)),
   };
 }
@@ -102,11 +93,8 @@ export async function runDispatcherTurn(input: {
       category: "Umumiy xizmat",
       urgency: "medium",
       questions: [],
-      summary:
-        "OPENAI_API_KEY sozlanmagan — tizim cheklangan rejimda. So'rovni tasdiqlab ustalarni ko'ring.",
-      reasoning:
-        "AI kaliti yo'q: ro'yxatdagi ustalarni reyting va masofa bo'yicha tanlang; xizmat turini so'rov matnidan moslashtiring.",
-      tags: ["no-ai"],
+      summary: "So'rov qabul qilindi. Mos ustalarni ro'yxatdan tanlang.",
+      tags: ["xizmat"],
       usedOpenAi: false,
     };
   }
@@ -126,8 +114,8 @@ export async function runDispatcherTurn(input: {
   if (input.imageUrl) {
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
-      temperature: 0.2,
-      max_tokens: 520,
+      temperature: 0.15,
+      max_tokens: 380,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM },
@@ -150,8 +138,8 @@ export async function runDispatcherTurn(input: {
   } else {
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
-      temperature: 0.2,
-      max_tokens: 520,
+      temperature: 0.15,
+      max_tokens: 380,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM },

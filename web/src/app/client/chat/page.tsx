@@ -35,7 +35,6 @@ type AiRes = {
     urgency: string;
     questions: string[];
     summary: string;
-    reasoning?: string;
     tags: string[];
   };
 };
@@ -66,7 +65,6 @@ function draftToAi(d: DraftRequest): AiRes["ai"] | null {
     tags?: string[];
     questions?: string[];
     urgency?: string;
-    reasoning?: string;
   };
   if (!String(d.summary ?? "").trim() && !String(d.category ?? "").trim()) return null;
   return {
@@ -74,7 +72,6 @@ function draftToAi(d: DraftRequest): AiRes["ai"] | null {
     urgency: (d.urgency as string) || st.urgency || "medium",
     questions: Array.isArray(st.questions) ? st.questions : [],
     summary: d.summary || "",
-    reasoning: typeof st.reasoning === "string" ? st.reasoning : "",
     tags:
       Array.isArray(d.tags) && d.tags.length > 0 ? d.tags : Array.isArray(st.tags) ? st.tags : [],
   };
@@ -94,7 +91,6 @@ export default function ClientChatPage() {
   const [requestId, setRequestId] = useState<string | null>(null);
   const [thread, setThread] = useState<ThreadMsg[]>([]);
   const [lastAi, setLastAi] = useState<AiRes["ai"] | null>(null);
-  const [usedOpenAi, setUsedOpenAi] = useState<boolean | null>(null);
   const [readyToMatch, setReadyToMatch] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hydrating, setHydrating] = useState(true);
@@ -238,7 +234,6 @@ export default function ClientChatPage() {
       const canMatch = Boolean(r.data.readyToMatch) && questions.length === 0;
       setRequestId(rid);
       setLastAi(r.data.ai);
-      setUsedOpenAi(r.data.usedOpenAi);
       setReadyToMatch(canMatch);
       setText("");
       setPendingImagePath(null);
@@ -271,19 +266,10 @@ export default function ClientChatPage() {
     <div className="min-h-dvh flex flex-col px-4 pt-4">
       <TwaShell />
       <header className="mb-3">
-        <h1 className="text-lg font-bold gradient-text">Dispetcher AI</h1>
+        <h1 className="text-lg font-bold gradient-text">Dispetcher</h1>
         <p className="text-xs text-white/50">
-          Muammoingizni yozing — tayyor bo‘lganda mos ustalar shu yerga chiqadi. Suhbat saqlanadi.
+          Ishingizni yozing — mos ustalar ro‘yxati shu yerda paydo bo‘ladi. Suhbat saqlanadi.
         </p>
-        {usedOpenAi !== null && (
-          <p
-            className={`text-[10px] mt-1 ${usedOpenAi ? "text-emerald-400/80" : "text-amber-300/80"}`}
-          >
-            {usedOpenAi
-              ? "OpenAI (gpt-4o-mini) ishlatilmoqda."
-              : "OpenAI kaliti yo‘q — cheklangan rejim."}
-          </p>
-        )}
       </header>
 
       <div className="flex-1 overflow-y-auto no-scrollbar space-y-3 pb-4">
@@ -315,14 +301,6 @@ export default function ClientChatPage() {
                 {lastAi.category} · {lastAi.urgency}
               </p>
               <p className="text-sm text-white/90">{lastAi.summary}</p>
-              {lastAi.reasoning?.trim() && (
-                <div className="rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-3 py-2">
-                  <p className="text-[10px] uppercase text-cyan-200/70 mb-1">AI tahlili</p>
-                  <p className="text-xs text-white/80 whitespace-pre-wrap leading-relaxed">
-                    {lastAi.reasoning}
-                  </p>
-                </div>
-              )}
               {lastAi.questions?.length > 0 && (
                 <ul className="text-xs text-cyan-200/90 list-disc pl-4 space-y-1">
                   {lastAi.questions.map((q) => (
