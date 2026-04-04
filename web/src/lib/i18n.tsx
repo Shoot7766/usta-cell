@@ -1,4 +1,9 @@
-const dictionary = {
+"use client";
+
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { loadWebApp } from "@/lib/twa";
+
+export const dictionary = {
   uz: {
     booting: "Usta Call yuklanmoqda…",
     auth_failed: "Kirishda xatolik",
@@ -244,10 +249,15 @@ const dictionary = {
 export type Language = keyof typeof dictionary;
 export type TranslationKey = keyof (typeof dictionary)["uz"];
 
-import { useState, useEffect } from "react";
-import { loadWebApp } from "@/lib/twa";
+type I18nContextType = {
+  lang: Language;
+  setLang: (lang: Language) => void;
+  t: (key: TranslationKey) => string;
+};
 
-export function useI18n() {
+const I18nContext = createContext<I18nContextType | undefined>(undefined);
+
+export function i18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Language>("uz");
 
   useEffect(() => {
@@ -255,15 +265,30 @@ export function useI18n() {
       const tgLang = WebApp.initDataUnsafe?.user?.language_code;
       if (tgLang === "ru") {
         setLang("ru");
-      } else {
-        setLang("uz");
       }
     });
   }, []);
 
   const t = (key: TranslationKey): string => {
-    return dictionary[lang][key] || (dictionary["uz"][key] as string) || (key as string);
+    return dictionary[lang][key] || dictionary["uz"][key] || (key as string);
   };
 
-  return { t, lang, setLang };
+  return (
+    <I18nContext.Provider value={{ lang, setLang, t }}>
+      {children}
+    </I18nContext.Provider>
+  );
+}
+
+export function useI18n() {
+  const ctx = useContext(I18nContext);
+  if (!ctx) {
+    // Fallback if used outside provider (though shouldn't happen)
+    return {
+      lang: "uz" as Language,
+      setLang: () => {},
+      t: (key: TranslationKey) => dictionary["uz"][key] || (key as string),
+    };
+  }
+  return ctx;
 }
