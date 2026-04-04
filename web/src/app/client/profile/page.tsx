@@ -43,6 +43,33 @@ export default function ClientProfilePage() {
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [saving, setSaving] = useState(false);
+  const [requestingPhone, setRequestingPhone] = useState(false);
+
+  const requestTelegramPhone = async () => {
+    setRequestingPhone(true);
+    try {
+      const WebApp = await loadWebApp();
+      const wa = WebApp as unknown as {
+        requestContact?: (cb: (ok: boolean) => void) => void;
+        onEvent?: (event: string, cb: (data: unknown) => void) => void;
+      };
+      if (!wa.requestContact) {
+        WebApp.showAlert("Telegram'dan raqam olib bo'lmadi. Qo'lda kiriting.");
+        setRequestingPhone(false);
+        return;
+      }
+      wa.onEvent?.("contactRequested", (data: unknown) => {
+        const d = data as { status?: string; response?: { phone_number?: string } };
+        if (d?.status === "sent" && d?.response?.phone_number) {
+          setEditPhone(d.response.phone_number);
+        }
+        setRequestingPhone(false);
+      });
+      wa.requestContact(() => { setRequestingPhone(false); });
+    } catch {
+      setRequestingPhone(false);
+    }
+  };
 
   useEffect(() => {
     void loadWebApp().then((WebApp) => {
@@ -184,12 +211,22 @@ export default function ClientProfilePage() {
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
               />
-              <input
-                className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-                placeholder={t("phone_placeholder")}
-                value={editPhone}
-                onChange={(e) => setEditPhone(e.target.value)}
-              />
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
+                  placeholder={t("phone_placeholder")}
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                />
+                <button
+                  type="button"
+                  disabled={requestingPhone}
+                  onClick={() => { haptic.impact("light"); void requestTelegramPhone(); }}
+                  className="shrink-0 rounded-xl bg-blue-500/20 border border-blue-400/30 px-3 py-2 text-xs text-blue-200 disabled:opacity-40"
+                >
+                  {requestingPhone ? "…" : "📱 TG"}
+                </button>
+              </div>
               <PrimaryButton disabled={saving} onClick={() => {
                   haptic.impact("medium");
                   void saveProfile();

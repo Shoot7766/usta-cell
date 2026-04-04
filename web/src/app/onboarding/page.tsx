@@ -39,6 +39,7 @@ export default function OnboardingPage() {
   const [phone, setPhone] = useState("");
   const [roleLoading, setRoleLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
+  const [requestingPhone, setRequestingPhone] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,6 +124,33 @@ export default function OnboardingPage() {
       await refresh();
     } finally {
       setSaveLoading(false);
+    }
+  };
+
+  const requestTelegramPhone = async () => {
+    setRequestingPhone(true);
+    try {
+      const WebApp = await loadWebApp();
+      const wa = WebApp as unknown as {
+        requestContact?: (cb: (ok: boolean) => void) => void;
+        onEvent?: (event: string, cb: (data: unknown) => void) => void;
+      };
+      if (!wa.requestContact) {
+        WebApp.showAlert("Telegram'dan raqam olib bo'lmadi. Qo'lda kiriting.");
+        return;
+      }
+      wa.onEvent?.("contactRequested", (data: unknown) => {
+        const d = data as { status?: string; response?: { phone_number?: string } };
+        if (d?.status === "sent" && d?.response?.phone_number) {
+          setPhone(d.response.phone_number);
+        }
+        setRequestingPhone(false);
+      });
+      wa.requestContact(() => {
+        setRequestingPhone(false);
+      });
+    } catch {
+      setRequestingPhone(false);
     }
   };
 
@@ -265,12 +293,22 @@ export default function OnboardingPage() {
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
           />
-          <input
-            className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm outline-none focus:border-cyan-400/40"
-            placeholder={t("phone_placeholder")}
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
+          <div className="flex gap-2">
+            <input
+              className="flex-1 rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm outline-none focus:border-cyan-400/40"
+              placeholder={t("phone_placeholder")}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+            <button
+              type="button"
+              disabled={requestingPhone}
+              onClick={() => { haptic.impact("light"); void requestTelegramPhone(); }}
+              className="shrink-0 rounded-xl bg-blue-500/20 border border-blue-400/30 px-3 py-2 text-xs text-blue-200 disabled:opacity-40"
+            >
+              {requestingPhone ? "…" : "📱 TG"}
+            </button>
+          </div>
           <p className="text-[11px] text-white/40">
             {t("onboarding_info")}
           </p>

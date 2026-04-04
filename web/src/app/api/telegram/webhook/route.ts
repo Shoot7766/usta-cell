@@ -43,17 +43,33 @@ type TgUpdate = {
 
 /* ── Channel import helpers ──────────────────────────────────────────────── */
 
-function isAllowedImportChannel(chat: TgChat): boolean {
-  const raw = (process.env.TELEGRAM_IMPORT_CHANNEL_IDS || "").trim();
-  if (!raw) return false;
-  const items = raw.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
-  if (items.includes("*")) return true;
+async function isAllowedImportChannel(chat: TgChat): Promise<boolean> {
   const chatId = String(chat.id).toLowerCase();
   const username = (chat.username || "").toLowerCase();
-  return (
-    items.includes(chatId) ||
-    (username ? items.includes(username) || items.includes(`@${username}`) : false)
-  );
+
+  // Fast path: env var override
+  const raw = (process.env.TELEGRAM_IMPORT_CHANNEL_IDS || "").trim();
+  if (raw) {
+    const items = raw.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+    if (items.includes("*")) return true;
+    if (
+      items.includes(chatId) ||
+      (username && (items.includes(username) || items.includes(`@${username}`)))
+    ) return true;
+  }
+
+  // DB check: admin panel manbalar ro'yxati
+  const sb = getServiceSupabase();
+  const identifiers = [String(chat.id), ...(username ? [username, `@${username}`] : [])];
+  const { data } = await sb
+    .from("import_sources")
+    .select("id")
+    .eq("type", "telegram_channel")
+    .eq("enabled", true)
+    .in("identifier", identifiers)
+    .limit(1)
+    .maybeSingle();
+  return !!data?.id;
 }
 
 function postSourceUrl(post: TgMessage): string | undefined {
@@ -66,7 +82,7 @@ function postSourceUrl(post: TgMessage): string | undefined {
 async function handleChannelPost(post: TgMessage, rawUpdate: TgUpdate): Promise<void> {
   const chat = post.chat;
   if (!chat?.id || chat.type !== "channel") return;
-  if (!isAllowedImportChannel(chat)) return;
+  if (!(await isAllowedImportChannel(chat))) return;
   const text = (post.text ?? post.caption ?? "").trim();
   if (!text) return;
   await importFromExternal({
