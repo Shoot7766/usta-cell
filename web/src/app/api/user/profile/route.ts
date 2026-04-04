@@ -13,6 +13,9 @@ const Body = z.object({
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
   cityName: z.string().max(120).optional(),
+  priceMinCents: z.number().int().min(0).max(1_000_000_000).optional(),
+  priceMaxCents: z.number().int().min(0).max(1_000_000_000).optional(),
+  serviceRadiusKm: z.number().int().min(1).max(300).optional(),
   workingHours: z.record(z.string()).optional(),
   isAvailable: z.boolean().optional(),
   portfolio: z
@@ -49,6 +52,9 @@ export async function PATCH(req: NextRequest) {
     if (body.lat != null) wp.lat = body.lat;
     if (body.lng != null) wp.lng = body.lng;
     if (body.cityName != null) wp.city_name = sanitizeText(body.cityName, 120);
+    if (body.priceMinCents != null) wp.price_min_cents = body.priceMinCents;
+    if (body.priceMaxCents != null) wp.price_max_cents = body.priceMaxCents;
+    if (body.serviceRadiusKm != null) wp.service_radius_km = body.serviceRadiusKm;
     if (body.workingHours != null) wp.working_hours = body.workingHours;
     if (body.isAvailable != null) wp.is_available = body.isAvailable;
     if (body.portfolio != null) {
@@ -64,8 +70,6 @@ export async function PATCH(req: NextRequest) {
         {
           user_id: ctx.userId,
           ...wp,
-          price_min_cents: 0,
-          price_max_cents: 0,
         },
         { onConflict: "user_id" }
       );

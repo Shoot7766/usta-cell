@@ -74,7 +74,7 @@ export default function ClientWorkerProfilePage() {
       }
       setData(r.data ?? null);
     })();
-  }, [id]);
+  }, [id, t]);
 
   if (!id) {
     return (

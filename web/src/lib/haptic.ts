@@ -1,6 +1,20 @@
 type HapticImpact = "light" | "medium" | "heavy" | "rigid" | "soft";
 type HapticNotification = "error" | "success" | "warning";
 
+type TelegramWebApp = {
+  HapticFeedback?: {
+    impactOccurred: (style: HapticImpact) => void;
+    notificationOccurred: (type: HapticNotification) => void;
+    selectionChanged: () => void;
+  };
+};
+
+interface WindowWithTelegram extends Window {
+  Telegram?: {
+    WebApp?: TelegramWebApp;
+  };
+}
+
 /**
  * Telegram Haptic Feedback utility
  */
@@ -8,7 +22,7 @@ export const haptic = {
   impact: (style: HapticImpact = "medium") => {
     if (typeof window === "undefined") return;
     try {
-      (window as any).Telegram?.WebApp?.HapticFeedback?.impactOccurred(style);
+      (window as WindowWithTelegram).Telegram?.WebApp?.HapticFeedback?.impactOccurred(style);
     } catch (e) {
       console.warn("Haptic impact failed", e);
     }
@@ -16,7 +30,7 @@ export const haptic = {
   notification: (type: HapticNotification) => {
     if (typeof window === "undefined") return;
     try {
-      (window as any).Telegram?.WebApp?.HapticFeedback?.notificationOccurred(type);
+      (window as WindowWithTelegram).Telegram?.WebApp?.HapticFeedback?.notificationOccurred(type);
     } catch (e) {
       console.warn("Haptic notification failed", e);
     }
@@ -24,7 +38,7 @@ export const haptic = {
   selection: () => {
     if (typeof window === "undefined") return;
     try {
-      (window as any).Telegram?.WebApp?.HapticFeedback?.selectionChanged();
+      (window as WindowWithTelegram).Telegram?.WebApp?.HapticFeedback?.selectionChanged();
     } catch (e) {
       console.warn("Haptic selection failed", e);
     }

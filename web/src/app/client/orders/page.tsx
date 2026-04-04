@@ -77,7 +77,7 @@ export default function ClientOrdersPage() {
                 {o.requests?.summary || t("order")}
               </p>
               <p className="text-xs text-white/45 mt-1">
-                {t(`status_${o.status}` as any)} · {o.price_cents.toLocaleString()} {t("sum_currency")}
+                {t(`status_${o.status}` as Parameters<typeof t>[0])} · {o.price_cents.toLocaleString()} {t("sum_currency")}
               </p>
             </GlassCard>
           </Link>

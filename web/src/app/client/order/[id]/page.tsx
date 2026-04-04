@@ -225,7 +225,7 @@ export default function ClientOrderPage() {
       <h1 className="text-lg font-bold gradient-text mb-1">{t("order")}</h1>
       <GlassCard className="p-4 mb-4">
         <p className="text-xs text-white/45">
-          {t("order_status")}: {t((statusKeys[status] || status) as any)}
+          {t("order_status")}: {t((statusKeys[status] || status) as Parameters<typeof t>[0])}
         </p>
         {requestSummary.trim() && (
           <p className="text-xs text-white/75 mt-2 leading-relaxed">{requestSummary}</p>

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import Script from "next/script";
-import { i18nProvider as I18nProvider } from "@/lib/i18n";
+import { I18nProvider } from "@/lib/i18n";
 import "./globals.css";
 
 const outfit = Outfit({

@@ -47,6 +47,10 @@ export async function GET() {
           lng: wp.lng as number | null,
           bio: (wp.bio as string | null) ?? null,
           cityName: (wp.city_name as string | null) ?? null,
+          priceMinCents: Number(wp.price_min_cents ?? 0),
+          priceMaxCents: Number(wp.price_max_cents ?? 0),
+          serviceRadiusKm: Number(wp.service_radius_km ?? 15),
+          workingHours: ((wp.working_hours as Record<string, string> | null) ?? {}),
           portfolio: portfolioDb.map((p) => ({
             imageUrl: p.image_url,
             caption: p.caption ?? undefined,

@@ -36,7 +36,7 @@ export function TwaShell() {
   return null;
 }
 
-function syncTheme(WebApp: any) {
+function syncTheme(WebApp: typeof import("@twa-dev/sdk").default) {
   const bg = WebApp.themeParams.bg_color || "#070a12";
   const text = WebApp.themeParams.text_color || "#e8f0ff";
   const hint = WebApp.themeParams.hint_color || "rgba(232, 240, 255, 0.5)";

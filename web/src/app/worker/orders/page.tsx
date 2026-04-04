@@ -60,7 +60,7 @@ export default function WorkerOrdersPage() {
               )}
               <p className="text-sm">{o.requests?.summary || t("order")}</p>
               <p className="text-xs text-white/45 mt-1">
-                {t((statusKeys[o.status] || o.status) as any)} · {o.price_cents.toLocaleString()} {t("sum_currency")}
+                {t((statusKeys[o.status] || o.status) as Parameters<typeof t>[0])} · {o.price_cents.toLocaleString()} {t("sum_currency")}
               </p>
             </GlassCard>
           </Link>

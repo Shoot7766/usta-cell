@@ -288,7 +288,7 @@ export default function OnboardingPage() {
         {/* MainButton replaces this, keep empty or small hint for non-TWA */}
         {me.user.profileCompleted && (role !== "worker" || me.user.workerProfileOk) && (
           <p className="text-[10px] text-center text-white/30 italic">
-            Telegram "{t("continue")}" tugmasini bosing
+            Telegram &quot;{t("continue")}&quot; tugmasini bosing
           </p>
         )}
       </motion.div>

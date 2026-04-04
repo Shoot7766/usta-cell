@@ -11,6 +11,7 @@ import { TwaShell } from "@/components/telegram/TwaShell";
 import { motion, useMotionValue, useTransform, PanInfo } from "framer-motion";
 import { haptic, hapticLight, hapticSuccess } from "@/lib/haptic";
 import { useI18n } from "@/lib/i18n";
+import type { TranslationKey } from "@/lib/i18n";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 type W = {
@@ -46,7 +47,7 @@ function WorkerSwipeCard({
   busy: boolean;
   anyOrdering: boolean;
   requestId: string;
-  t: any;
+  t: (key: TranslationKey) => string;
 }) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-120, 120], [-6, 6]);
@@ -90,7 +91,7 @@ function WorkerSwipeCard({
               key={b}
               className="text-[10px] px-2 py-0.5 rounded-full bg-fuchsia-500/15 text-fuchsia-100 border border-fuchsia-400/15"
             >
-              {t(badgeKeys[b] || b)}
+              {t((badgeKeys[b] || b) as TranslationKey)}
             </span>
           ))}
         </div>

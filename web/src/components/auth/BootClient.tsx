@@ -13,7 +13,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { TwaShell } from "@/components/telegram/TwaShell";
-import { haptic, hapticSuccess, hapticError } from "@/lib/haptic";
+import { haptic, hapticSuccess } from "@/lib/haptic";
 import { useI18n } from "@/lib/i18n";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -115,7 +115,7 @@ export function BootClient() {
       setPhase("err");
       setMsg(e instanceof Error ? e.message : "Noma'lum xato");
     }
-  }, [routeAfterAuth, meData]);
+  }, [routeAfterAuth, meData, t]);
 
   const skipPhone = useCallback(() => {
     if (!meData) return;
@@ -171,7 +171,7 @@ export function BootClient() {
     return () => {
       cancelled = true;
     };
-  }, [routeAfterAuth]);
+  }, [routeAfterAuth, t]);
 
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center bg-[#070a12] px-5 safe-pb">
