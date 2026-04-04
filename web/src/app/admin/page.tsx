@@ -80,6 +80,11 @@ export default function AdminPage() {
   const [notifyBusy, setNotifyBusy]       = useState(false);
   const [notifyResult, setNotifyResult]   = useState<{ ok: boolean; found: boolean; notified: boolean; reason?: string | null; displayName?: string | null } | null>(null);
 
+  /* scrape */
+  const [scrapeBusy, setScrapeBusy]   = useState<string | null>(null);
+  type ScrapeResult = { scraped: number; imported: number; results: { title: string; url: string; type: string; created: boolean; phone: string | null; error?: string }[] };
+  const [scrapeResults, setScrapeResults] = useState<Record<string, ScrapeResult>>({});
+
   /* leads */
   const [leads, setLeads]           = useState<LeadRow[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
@@ -164,6 +169,20 @@ export default function AdminPage() {
   const deleteSource = async (id: string) => {
     await apiJson(`/api/admin/sources/${id}`, { method: "DELETE" });
     await loadSources();
+  };
+  const runScrape = async (src: SourceRow) => {
+    setScrapeBusy(src.id);
+    const r = await apiJson<{ ok: boolean; scraped: number; imported: number; results: ScrapeResult["results"] }>(
+      "/api/admin/scrape",
+      { method: "POST", body: JSON.stringify({ sourceId: src.id }) }
+    );
+    setScrapeBusy(null);
+    if (r.data) {
+      setScrapeResults((prev) => ({
+        ...prev,
+        [src.id]: { scraped: r.data!.scraped, imported: r.data!.imported, results: r.data!.results ?? [] },
+      }));
+    }
   };
 
   /* ── Import tab actions ──────────────────────────────────────────── */
@@ -325,7 +344,8 @@ export default function AdminPage() {
             {sources.length === 0 && <p className="text-sm text-white/40">Manbalar yo&apos;q.</p>}
             <div className="space-y-2">
               {sources.map((s) => (
-                <GlassCard key={s.id} className="p-3 flex items-center gap-3">
+                <div key={s.id} className="space-y-1">
+                <GlassCard className="p-3 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate text-white/90">{s.identifier}</p>
                     <p className="text-[11px] text-white/40">{s.label ?? s.type} · {new Date(s.created_at).toLocaleDateString("uz-UZ")}</p>
@@ -336,6 +356,15 @@ export default function AdminPage() {
                   >
                     {s.enabled ? "Yoqiq" : "O'chiq"}
                   </button>
+                  {s.type === "website" && (
+                    <button
+                      disabled={scrapeBusy === s.id}
+                      className="text-xs px-2 py-1 rounded-lg border border-cyan-400/25 text-cyan-300/80 bg-cyan-500/8 hover:bg-cyan-500/20 disabled:opacity-40 transition-colors"
+                      onClick={() => void runScrape(s)}
+                    >
+                      {scrapeBusy === s.id ? "…" : "🤖 Scrape"}
+                    </button>
+                  )}
                   <button
                     className="text-xs px-2 py-1 rounded-lg border border-red-400/20 text-red-300/70 bg-red-500/5 hover:bg-red-500/15 transition-colors"
                     onClick={() => void deleteSource(s.id)}
@@ -343,6 +372,19 @@ export default function AdminPage() {
                     O&apos;chirish
                   </button>
                 </GlassCard>
+                {scrapeResults[s.id] && (
+                  <div className="mx-1 px-3 py-2 rounded-xl bg-black/30 border border-cyan-400/10 text-xs space-y-1">
+                    <p className="text-white/60">
+                      Scraped: <strong className="text-white">{scrapeResults[s.id].scraped}</strong> · Imported: <strong className="text-emerald-300">{scrapeResults[s.id].imported}</strong>
+                    </p>
+                    {scrapeResults[s.id].results.slice(0, 5).map((r, i) => (
+                      <p key={i} className={`truncate ${r.type === "error" ? "text-red-300/70" : r.type === "worker_offer" ? "text-fuchsia-300/80" : r.type === "client_request" ? "text-cyan-300/80" : "text-white/30"}`}>
+                        {r.type === "worker_offer" ? "🔨" : r.type === "client_request" ? "📋" : r.type === "error" ? "❌" : "—"} {r.title}{r.error ? ` — ${r.error}` : ""}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                </div>
               ))}
             </div>
           </section>
