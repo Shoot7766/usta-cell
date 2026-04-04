@@ -13,6 +13,8 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { TwaShell } from "@/components/telegram/TwaShell";
+import { haptic, hapticSuccess, hapticError } from "@/lib/haptic";
+import { useI18n } from "@/lib/i18n";
 import { motion, AnimatePresence } from "framer-motion";
 
 type Me = {
@@ -29,6 +31,7 @@ type Me = {
 };
 
 export function BootClient() {
+  const { t } = useI18n();
   const router = useRouter();
   const [phase, setPhase] = useState<
     "idle" | "auth" | "route" | "needsPhone" | "err"
@@ -101,9 +104,10 @@ export function BootClient() {
       setPhoneLoading(false);
       if (!me.ok || !me.data) {
         setPhase("err");
-        setMsg(me.error || "Profil yangilanmadi");
+        setMsg(me.error || t("auth_failed"));
         return;
       }
+      hapticSuccess();
       setPhase("route");
       routeAfterAuth(me.data);
     } catch (e) {
@@ -139,7 +143,7 @@ export function BootClient() {
         if (cancelled) return;
         if (!auth.ok) {
           setPhase("err");
-          setMsg(auth.error || "Kirish muvaffaqiyatsiz");
+          setMsg(auth.error || t("auth_failed"));
           return;
         }
         const me = await apiJson<Me>("/api/me");
@@ -194,7 +198,7 @@ export function BootClient() {
                 <Skeleton className="h-3 w-2/3" />
                 <Skeleton className="h-3 w-full" />
                 <Skeleton className="h-3 w-5/6" />
-                <p className="text-xs text-white/45 pt-2">Tizimga ulanmoqda…</p>
+                <p className="text-xs text-white/45 pt-2">{t("booting")}</p>
               </motion.div>
             ) : phase === "needsPhone" ? (
               <motion.div
@@ -204,36 +208,44 @@ export function BootClient() {
                 exit={{ opacity: 0 }}
                 className="space-y-4"
               >
-                <p className="text-sm text-white/75">
-                  Buyurtma va aloqa uchun telefon raqamingizni ulang. Telegram
-                  faqat siz «Ulashish» desangiz beradi.
+                 <p className="text-sm text-white/75">
+                  {t("needs_phone")}
                 </p>
-                <PrimaryButton
+                 <PrimaryButton
                   disabled={phoneLoading}
-                  onClick={() => void attachPhoneAndContinue()}
+                  onClick={() => {
+                    haptic.impact("medium");
+                    void attachPhoneAndContinue();
+                  }}
                 >
-                  {phoneLoading ? "Kutilmoqda…" : "Telegramdan telefonni ulash"}
+                  {phoneLoading ? t("loading") : t("share_phone")}
                 </PrimaryButton>
-                <button
+                 <button
                   type="button"
                   className="w-full text-sm text-white/45 py-2"
                   disabled={phoneLoading}
-                  onClick={skipPhone}
+                  onClick={() => {
+                    haptic.impact("light");
+                    skipPhone();
+                  }}
                 >
-                  Keyinroq (onboardingda kiritaman)
+                  {t("skip")}
                 </button>
               </motion.div>
             ) : (
-              <motion.div
+               <motion.div
                 key="err"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="space-y-4"
               >
-                <p className="text-sm text-red-300/90">{msg || "Xatolik"}</p>
-                <PrimaryButton onClick={() => window.location.reload()}>
-                  Qayta urinish
+                <p className="text-sm text-red-300/90">{msg || t("auth_failed")}</p>
+                <PrimaryButton onClick={() => {
+                    haptic.impact("medium");
+                    window.location.reload();
+                }}>
+                  {t("retry")}
                 </PrimaryButton>
               </motion.div>
             )}

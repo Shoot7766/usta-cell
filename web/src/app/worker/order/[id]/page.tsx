@@ -7,7 +7,11 @@ import { apiJson } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
+import { haptic, hapticSuccess, hapticError } from "@/lib/haptic";
+import { useI18n } from "@/lib/i18n";
+import { ORDER_ACCEPT_FEE_CENTS } from "@/lib/constants";
 export default function WorkerOrderPage() {
+  const { t, lang } = useI18n();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [status, setStatus] = useState("new");
@@ -27,7 +31,10 @@ export default function WorkerOrderPage() {
     void loadWebApp().then((WebApp) => {
       if (cancelled) return;
       WebApp.BackButton.show();
-      WebApp.BackButton.onClick(() => router.push("/worker/orders"));
+      WebApp.BackButton.onClick(() => {
+        haptic.impact("light");
+        router.push("/worker/orders");
+      });
     });
     return () => {
       cancelled = true;
@@ -125,10 +132,14 @@ export default function WorkerOrderPage() {
     });
     const WebApp = await loadWebApp();
     if (r.ok && wasPending && s === "accepted") {
-      WebApp.showAlert(
-        "Buyurtma qabul qilindi. Bepul qabul limiti tugagan bo‘lsa, hisobdan qabul haqi (10 000 so‘m) yechiladi."
-      );
+      hapticSuccess();
+      const feeStr = ORDER_ACCEPT_FEE_CENTS.toLocaleString();
+      const msg = lang === "ru" 
+        ? `Заказ принят. Если лимит бесплатных приемов исчерпан, с баланса будет списано ${feeStr} ${t("sum_currency")}.`
+        : `Buyurtma qabul qilindi. Bepul qabul limiti tugagan bo‘lsa, hisobdan qabul haqi (${feeStr} ${t("sum_currency")}) yechiladi.`;
+      WebApp.showAlert(msg);
     } else if (!r.ok && r.error) {
+      hapticError();
       WebApp.showAlert(r.error);
     }
     load();
@@ -140,6 +151,7 @@ export default function WorkerOrderPage() {
       method: "POST",
       body: JSON.stringify({ requestId }),
     });
+    hapticSuccess();
     load();
   };
 
@@ -151,6 +163,7 @@ export default function WorkerOrderPage() {
     });
     const WebApp = await loadWebApp();
     if (r.ok && wasP) {
+      hapticSuccess();
       WebApp.showAlert("Rad etildi. Tarixda qoldi; so‘rov yana bozorga qaytdi.");
       router.push("/worker");
       return;
@@ -162,10 +175,10 @@ export default function WorkerOrderPage() {
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28 space-y-3">
       <TwaShell />
-      <h1 className="text-lg font-bold gradient-text">Buyurtma</h1>
+      <h1 className="text-lg font-bold gradient-text">{t("order")}</h1>
       {clientJobText ? (
         <GlassCard className="p-4 space-y-2 border border-white/10">
-          <p className="text-[11px] uppercase text-white/40">Mijoz yozgani</p>
+          <p className="text-[11px] uppercase text-white/40">{t("client_said")}</p>
           <p className="text-sm text-white/90 whitespace-pre-wrap break-words leading-relaxed">
             {clientJobText}
           </p>
@@ -173,7 +186,7 @@ export default function WorkerOrderPage() {
       ) : null}
       {clientIssueImageUrl && (
         <GlassCard className="p-4 space-y-2 border border-cyan-400/20">
-          <p className="text-[11px] uppercase text-white/40">Mijoz yuborgan rasm</p>
+          <p className="text-[11px] uppercase text-white/40">{t("client_image")}</p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={clientIssueImageUrl}
@@ -192,23 +205,19 @@ export default function WorkerOrderPage() {
       )}
       {status === "pending_worker" && (
         <GlassCard className="p-4 space-y-3 border border-fuchsia-400/25">
-          <p className="text-[11px] uppercase text-fuchsia-200/80">Bozordan band qilindi</p>
+          <p className="text-[11px] uppercase text-fuchsia-200/80">{t("status_pending_worker")}</p>
           <p className="text-xs text-white/70 leading-relaxed">
-            Mijoz bilan gaplashib,{" "}
-            <strong className="text-white/90">10 daqiqa ichida</strong> pastdagi tugmalar bilan
-            tasdiqlang yoki rad eting. Muddat o‘tsa yoki javob bermasangiz, hisobdan{" "}
-            <strong className="text-neon">10 000 so‘m</strong> jarima yechiladi va so‘rov bozorga
-            qaytadi.
+            {t("pending_worker_hint")}
           </p>
           {remainingSec != null && (
             <p className="text-sm font-mono text-cyan-200/90">
-              Qolgan vaqt: {String(Math.floor(remainingSec / 60)).padStart(2, "0")}:
+              {t("remaining_time")}: {String(Math.floor(remainingSec / 60)).padStart(2, "0")}:
               {String(remainingSec % 60).padStart(2, "0")}
             </p>
           )}
           {(clientName || clientPhone || clientUsername) && (
             <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 space-y-1">
-              <p className="text-[10px] uppercase text-white/40">Mijoz</p>
+              <p className="text-[10px] uppercase text-white/40">{t("client")}</p>
               {clientName && <p className="text-sm text-white/90">{clientName}</p>}
               {clientUsername && (
                 <p className="text-sm text-white/85 font-mono">Telegram: {clientUsername}</p>
@@ -221,37 +230,43 @@ export default function WorkerOrderPage() {
             </div>
           )}
           <div className="grid grid-cols-2 gap-2">
-            <PrimaryButton className="!py-2 !text-xs" onClick={() => void setSt("accepted")}>
-              Tasdiqlash
+            <PrimaryButton className="!py-2 !text-xs" onClick={() => {
+                haptic.impact("medium");
+                void setSt("accepted");
+            }}>
+              {t("accept")}
             </PrimaryButton>
-            <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={() => void cancel()}>
-              Rad etish
+            <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={() => {
+                haptic.impact("medium");
+                void cancel();
+            }}>
+              {t("reject")}
             </PrimaryButton>
           </div>
         </GlassCard>
       )}
       <GlassCard className="p-4 space-y-2">
         <p className="text-sm text-white/80">
-          Holat:{" "}
+          {t("order_status")}:{" "}
           {status === "pending_worker"
-            ? "Tasdiqlash kutilmoqda"
+            ? t("status_pending_worker")
             : status === "new"
-              ? "Yangi"
+              ? t("status_new")
               : status === "accepted"
-                ? "Qabul qilindi"
+                ? t("status_accepted")
                 : status === "in_progress"
-                  ? "Ishlanmoqda"
+                  ? t("status_in_progress")
                   : status === "completed"
-                    ? "Yakunlandi"
+                    ? t("status_completed")
                     : status === "canceled"
-                      ? "Bekor / rad etilgan"
+                      ? t("status_canceled")
                       : status}
         </p>
       </GlassCard>
       {["accepted", "in_progress", "completed"].includes(status) &&
         (clientName || clientPhone || clientUsername) && (
           <GlassCard className="p-4 space-y-2 border border-white/10">
-            <p className="text-[10px] uppercase text-white/40">Mijoz</p>
+            <p className="text-[10px] uppercase text-white/40">{t("client")}</p>
             {clientName && <p className="text-sm text-white/90">{clientName}</p>}
             {clientUsername && (
               <p className="text-sm text-white/85 font-mono">Telegram: {clientUsername}</p>
@@ -265,11 +280,14 @@ export default function WorkerOrderPage() {
         )}
       {status === "new" && (
         <>
-          <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={unlock}>
-            Mijoz kontakti
+          <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={() => {
+              haptic.impact("medium");
+              void unlock();
+          }}>
+            {t("client_contact")}
           </PrimaryButton>
           <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 space-y-1">
-            <p className="text-[10px] uppercase text-white/40">Mijoz</p>
+            <p className="text-[10px] uppercase text-white/40">{t("client")}</p>
             {clientName && <p className="text-sm text-white/90">{clientName}</p>}
             {clientUsername && (
               <p className="text-sm text-white/85 font-mono">Telegram: {clientUsername}</p>
@@ -281,11 +299,17 @@ export default function WorkerOrderPage() {
             )}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <PrimaryButton className="!py-2 !text-xs" onClick={() => void setSt("accepted")}>
-              Qabul
+            <PrimaryButton className="!py-2 !text-xs" onClick={() => {
+                haptic.impact("medium");
+                void setSt("accepted");
+            }}>
+              {t("accept")}
             </PrimaryButton>
-            <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={cancel}>
-              Rad
+            <PrimaryButton className="!py-2 !text-xs" variant="ghost" onClick={() => {
+                haptic.impact("medium");
+                void cancel();
+            }}>
+              {t("reject")}
             </PrimaryButton>
           </div>
         </>

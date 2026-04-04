@@ -8,6 +8,8 @@ import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { ProfileExitDoor } from "@/components/ui/ProfileExitDoor";
+import { haptic, hapticSuccess, hapticError } from "@/lib/haptic";
+import { useI18n } from "@/lib/i18n";
 
 type Me = {
   user: {
@@ -35,6 +37,7 @@ const fadeUp = {
 };
 
 export default function ClientProfilePage() {
+  const { t } = useI18n();
   const [me, setMe] = useState<Me | null>(null);
   const [tgAvatarUrl, setTgAvatarUrl] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -76,7 +79,8 @@ export default function ClientProfilePage() {
     const WebApp = await loadWebApp();
     const name = editName.trim();
     if (name.length < 2) {
-      WebApp.showAlert("Ism kamida 2 belgi bo‘lsin.");
+      hapticError();
+      WebApp.showAlert(t("name_min_chars"));
       return;
     }
     setSaving(true);
@@ -88,16 +92,17 @@ export default function ClientProfilePage() {
       }),
     });
     setSaving(false);
-    WebApp.showAlert("Profil saqlandi.");
+    hapticSuccess();
+    WebApp.showAlert(t("profile_saved_toast"));
     await refresh();
   };
 
   const roleUz =
     me?.user.role === "worker"
-      ? "Usta"
+      ? t("worker_role")
       : me?.user.role === "admin"
-        ? "Admin"
-        : "Mijoz";
+        ? t("role_admin")
+        : t("client_role");
 
   return (
     <div className="relative min-h-dvh overflow-x-hidden px-4 pt-2 pb-28">
@@ -114,9 +119,9 @@ export default function ClientProfilePage() {
       <header className="relative mb-6 pt-2 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
-            Hisobingiz
+            {t("your_account")}
           </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight gradient-text">Profil</h1>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight gradient-text">{t("portfolio")}</h1>
         </div>
         <ProfileExitDoor className="shrink-0 mt-0.5" />
       </header>
@@ -158,37 +163,38 @@ export default function ClientProfilePage() {
               </div>
             </div>
             <h2 className="mt-4 max-w-[16rem] truncate text-lg font-semibold text-white">
-              {me.user.displayName || "Ism ko‘rsatilmagan"}
+              {me.user.displayName || t("no_worker_bio")}
             </h2>
             <span className="mt-1.5 inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-3 py-0.5 text-[11px] font-medium text-cyan-200/90">
               {roleUz}
             </span>
             <p className="mt-2 max-w-xs text-[11px] leading-relaxed text-white/40">
-              {tgAvatarUrl
-                ? "Rasm Telegram profilidan olinadi"
-                : "Telegramda rasm yo‘q yoki brauzerda ko‘rinmaydi"}
+              {t("tg_avatar_hint")}
             </p>
           </motion.div>
 
           <motion.div variants={fadeUp}>
             <GlassCard className="p-4 space-y-3">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
-                Profilni tahrirlash
+                {t("profile_edit")}
               </p>
               <input
                 className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-                placeholder="Ism"
+                placeholder={t("name_placeholder")}
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
               />
               <input
                 className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-                placeholder="Telefon"
+                placeholder={t("phone_placeholder")}
                 value={editPhone}
                 onChange={(e) => setEditPhone(e.target.value)}
               />
-              <PrimaryButton disabled={saving} onClick={() => void saveProfile()}>
-                {saving ? "Saqlanmoqda…" : "Saqlash"}
+              <PrimaryButton disabled={saving} onClick={() => {
+                  haptic.impact("medium");
+                  void saveProfile();
+              }}>
+                {saving ? t("saving") : t("save")}
               </PrimaryButton>
             </GlassCard>
           </motion.div>

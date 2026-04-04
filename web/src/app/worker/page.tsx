@@ -9,6 +9,8 @@ import { apiJson } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
+import { haptic, hapticSuccess } from "@/lib/haptic";
+import { useI18n } from "@/lib/i18n";
 
 type WorkerInboxData = {
   newOrders: {
@@ -24,9 +26,12 @@ type WorkerInboxData = {
     last_client_image_url?: string | null;
     last_image_caption?: string | null;
   }[];
+  balanceCents: number;
+  freeAcceptsRemaining: number;
 };
 
 export default function WorkerInboxPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const [data, setData] = useState<WorkerInboxData | null>(null);
 
@@ -73,23 +78,52 @@ export default function WorkerInboxPage() {
       body: JSON.stringify({ requestId }),
     });
     if (r.ok && r.data?.orderId) {
+      hapticSuccess();
       router.push(`/worker/order/${r.data.orderId}`);
       return;
     }
     const WebApp = await loadWebApp();
-    WebApp.showAlert(r.error || "Band qilinmadi");
+    WebApp.showAlert(r.error || t("auth_failed"));
     refresh();
   };
 
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28">
       <TwaShell />
-      <h1 className="text-lg font-bold gradient-text mb-1">Xabarlar</h1>
+      <h1 className="text-lg font-bold gradient-text mb-1">{t("worker_dash_title")}</h1>
       <p className="text-xs text-white/50 mb-3">
-        Yangi buyurtmalar va bozordagi so‘rovlar — real vaqt va qayta tekshiruv.
+        {t("worker_dash_hint")}
       </p>
+      
+      {data && (
+        <GlassCard className="p-3 mb-6 bg-cyan-400/5 border-cyan-400/20">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[10px] uppercase text-white/40 mb-1">{t("leads_balance")}</p>
+              <p className="text-lg font-bold text-white tabular-nums">
+                {data.balanceCents.toLocaleString()} {t("sum_currency")}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] uppercase text-white/40 mb-1">{t("free_accepts_remaining")}</p>
+              <p className="text-lg font-bold text-cyan-200 tabular-nums">
+                {data.freeAcceptsRemaining}
+              </p>
+            </div>
+          </div>
+          <Link href="/worker/profile">
+            <button
+              className="w-full mt-3 rounded-lg bg-white/10 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-white/70 hover:bg-white/15"
+              onClick={() => haptic.impact("light")}
+            >
+              {t("topup_card")} / {t("profile_label")} →
+            </button>
+          </Link>
+        </GlassCard>
+      )}
+
       <p className="text-xs text-white/40 mb-2 uppercase tracking-wider">
-        Sizga kelgan buyurtmalar
+        {t("my_orders")}
       </p>
       <div className="space-y-2 mb-6">
         {data?.newOrders?.map((o) => (
@@ -108,11 +142,11 @@ export default function WorkerInboxPage() {
           </Link>
         ))}
         {!data?.newOrders?.length && (
-          <p className="text-xs text-white/40">Hozircha yangi buyurtma yo‘q.</p>
+          <p className="text-xs text-white/40">{t("no_new_orders")}</p>
         )}
       </div>
       <p className="text-xs text-white/40 mb-2 uppercase tracking-wider">
-        Bozor so‘rovlari
+        {t("market_requests")}
       </p>
       <div className="space-y-2">
         {data?.openRequests?.map((req) => (
@@ -133,8 +167,14 @@ export default function WorkerInboxPage() {
             )}
             <p className="text-sm">{req.summary}</p>
             <p className="text-[11px] text-white/45">{req.category}</p>
-            <PrimaryButton className="!py-2 !text-xs" onClick={() => void reserve(req.id)}>
-              Band qilish
+            <PrimaryButton
+              className="!py-2 !text-xs"
+              onClick={() => {
+                haptic.impact("medium");
+                void reserve(req.id);
+              }}
+            >
+              {t("reserve")}
             </PrimaryButton>
           </GlassCard>
         ))}

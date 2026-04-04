@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 :root {
-  --bg-deep: #070a12;
+  --bg-deep: var(--tg-bg-color, #070a12);
   --bg-mid: #0d1224;
-  --glass: rgba(18, 24, 46, 0.55);
-  --glass-border: rgba(120, 200, 255, 0.12);
-  --neon: #3cf0ff;
+  --glass: rgba(18, 24, 46, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --neon: var(--tg-button-color, #3cf0ff);
   --neon-2: #a855f7;
-  --text: #e8f0ff;
-  --muted: rgba(232, 240, 255, 0.55);
+  --text: var(--tg-text-color, #e8f0ff);
+  --muted: var(--tg-hint-color, rgba(232, 240, 255, 0.55));
 }
 
 html {
@@ -23,25 +23,13 @@ body {
   background-color: var(--bg-deep);
   background-image: radial-gradient(
       1200px 600px at 10% -10%,
-      rgba(60, 240, 255, 0.12),
+      rgba(60, 240, 255, 0.08),
       transparent
     ),
-    radial-gradient(900px 500px at 100% 0%, rgba(168, 85, 247, 0.14), transparent),
+    radial-gradient(900px 500px at 100% 0%, rgba(168, 85, 247, 0.1), transparent),
     linear-gradient(180deg, var(--bg-deep), var(--bg-mid));
   color: var(--text);
   font-feature-settings: "ss01" on, "cv02" on;
-}
-
-.glass-panel {
-  background: var(--glass);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.neon-ring {
-  box-shadow: 0 0 0 1px rgba(60, 240, 255, 0.25), 0 0 32px rgba(60, 240, 255, 0.12);
 }
 
 .gradient-text {
@@ -61,4 +49,22 @@ body {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.8s infinite;
+}
+
+input, textarea {
+  color: var(--text);
+}
+
+::placeholder {
+  color: var(--muted);
 }

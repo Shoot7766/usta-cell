@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
+import Script from "next/script";
+import { i18nProvider as I18nProvider } from "@/lib/i18n";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -27,10 +29,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="uz">
+      <head>
+        <Script
+          src="https://telegram.org/js/telegram-web-app.js"
+          strategy="beforeInteractive"
+        />
+      </head>
       <body
         className={`${outfit.variable} font-sans antialiased min-h-dvh bg-[#070a12] text-[#e8f0ff]`}
       >
-        {children}
+        <I18nProvider>
+          {children}
+        </I18nProvider>
       </body>
     </html>
   );

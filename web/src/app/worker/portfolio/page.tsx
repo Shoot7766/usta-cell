@@ -7,7 +7,8 @@ import { apiJson } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
-import { hapticSuccess } from "@/lib/haptic";
+import { haptic, hapticSuccess, hapticError } from "@/lib/haptic";
+import { useI18n } from "@/lib/i18n";
 
 type Me = {
   user: { role: string };
@@ -17,6 +18,7 @@ type Me = {
 };
 
 export default function WorkerPortfolioPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [portfolioItems, setPortfolioItems] = useState<{ imageUrl: string; caption: string }[]>(
@@ -75,9 +77,10 @@ export default function WorkerPortfolioPage() {
     });
     setUploading(false);
     if (!res.ok) {
+      hapticError();
       const j = (await res.json().catch(() => ({}))) as { error?: string };
       const WebApp = await loadWebApp();
-      WebApp.showAlert(j.error || "Yuklash muvaffaqiyatsiz");
+      WebApp.showAlert(j.error || t("auth_failed"));
       return;
     }
     const j = (await res.json()) as { url?: string };
@@ -105,16 +108,17 @@ export default function WorkerPortfolioPage() {
     const WebApp = await loadWebApp();
     if (r.ok) {
       hapticSuccess();
-      WebApp.showAlert("Portfolio saqlandi.");
+      WebApp.showAlert(t("portfolio_saved"));
     } else {
-      WebApp.showAlert(r.error || "Saqlanmadi");
+      hapticError();
+      WebApp.showAlert(r.error || t("auth_failed"));
     }
   };
 
   if (!ready) {
     return (
       <div className="min-h-dvh p-5 flex items-center justify-center text-white/60">
-        Yuklanmoqda…
+        {t("booting")}
       </div>
     );
   }
@@ -122,10 +126,9 @@ export default function WorkerPortfolioPage() {
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28">
       <TwaShell />
-      <h1 className="text-lg font-bold gradient-text mb-1">Portfolio</h1>
+      <h1 className="text-lg font-bold gradient-text mb-1">{t("portfolio")}</h1>
       <p className="text-xs text-white/50 mb-4 leading-relaxed">
-        Ishlaringizdan rasm qo‘shing. Telegramda galereya yoki kamera orqali tanlash uchun quyidagi
-        tugmani bosing. Mijozlar «Ustalar» ro‘yxatida ularni ko‘radi.
+        {t("portfolio_hint")}
       </p>
 
       <input
@@ -139,11 +142,11 @@ export default function WorkerPortfolioPage() {
       <GlassCard className="p-4 mb-3 space-y-3">
         <div className="space-y-1.5">
           <p className="text-[10px] uppercase tracking-wider text-white/40">
-            Rasm uchun izoh
+            {t("image_caption_label")}
           </p>
           <textarea
             className="w-full min-h-[64px] rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-            placeholder="Bu rasm nima ish? (ixtiyoriy — yuklashdan oldin yozing)"
+            placeholder={t("image_caption_placeholder")}
             value={nextCaption}
             onChange={(e) => setNextCaption(e.target.value)}
           />
@@ -152,13 +155,16 @@ export default function WorkerPortfolioPage() {
           type="button"
           disabled={uploading || portfolioItems.length >= 12}
           className="w-full rounded-xl bg-gradient-to-b from-cyan-500/25 to-fuchsia-500/15 border border-white/15 py-3 text-sm font-medium disabled:opacity-45"
-          onClick={() => fileRef.current?.click()}
+          onClick={() => {
+            haptic.impact("medium");
+            fileRef.current?.click();
+          }}
         >
           {uploading
-            ? "Yuklanmoqda…"
+            ? t("loading")
             : portfolioItems.length >= 12
-              ? "Limit: 12 ta rasm"
-              : "Telegramdan rasm tanlash (galereya / kamera)"}
+              ? t("upload_limit")
+              : t("upload_button")}
         </button>
 
         <div className="space-y-4">
@@ -167,7 +173,7 @@ export default function WorkerPortfolioPage() {
               key={`${row.imageUrl}-${i}`}
               className="rounded-xl border border-white/10 bg-black/25 p-3 space-y-2"
             >
-              <p className="text-xs font-semibold text-cyan-200/90">Portfolio #{i + 1}</p>
+              <p className="text-xs font-semibold text-cyan-200/90">{t("portfolio")} #{i + 1}</p>
               {row.imageUrl.startsWith("http") && (
                 <div className="pt-1">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -181,7 +187,7 @@ export default function WorkerPortfolioPage() {
               )}
               <input
                 className="w-full rounded-lg bg-black/30 border border-white/10 px-2 py-1.5 text-xs"
-                placeholder="Qisqa izoh (ixtiyoriy)"
+                placeholder={t("comment_hint")}
                 value={row.caption}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -193,16 +199,25 @@ export default function WorkerPortfolioPage() {
               <button
                 type="button"
                 className="text-[11px] text-rose-300/90"
-                onClick={() => setPortfolioItems((prev) => prev.filter((_, j) => j !== i))}
+                onClick={() => {
+                  haptic.impact("light");
+                  setPortfolioItems((prev) => prev.filter((_, j) => j !== i));
+                }}
               >
-                O‘chirish
+                {t("delete")}
               </button>
             </div>
           ))}
         </div>
 
-        <PrimaryButton disabled={saving} onClick={() => void savePortfolio()}>
-          {saving ? "Saqlanmoqda…" : "Portfolioni saqlash"}
+        <PrimaryButton
+          disabled={saving}
+          onClick={() => {
+            haptic.impact("medium");
+            void savePortfolio();
+          }}
+        >
+          {saving ? t("saving") : t("save")}
         </PrimaryButton>
       </GlassCard>
     </div>

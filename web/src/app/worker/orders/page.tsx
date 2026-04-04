@@ -6,6 +6,8 @@ import { loadWebApp } from "@/lib/twa";
 import { apiJson } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { TwaShell } from "@/components/telegram/TwaShell";
+import { haptic } from "@/lib/haptic";
+import { useI18n } from "@/lib/i18n";
 
 type Row = {
   id: string;
@@ -15,16 +17,17 @@ type Row = {
   requests?: { summary?: string | null };
 };
 
-const statusUz: Record<string, string> = {
-  pending_worker: "Tasdiqlanmoqda (bozor)",
-  new: "Yangi",
-  accepted: "Qabul qilindi",
-  in_progress: "Ishlanmoqda",
-  completed: "Yakunlandi",
-  canceled: "Bekor / rad",
+const statusKeys: Record<string, string> = {
+  pending_worker: "status_pending_worker",
+  new: "status_new",
+  accepted: "status_accepted",
+  in_progress: "status_in_progress",
+  completed: "status_completed",
+  canceled: "status_canceled",
 };
 
 export default function WorkerOrdersPage() {
+  const { t } = useI18n();
   const [rows, setRows] = useState<Row[]>([]);
 
   useEffect(() => {
@@ -43,17 +46,21 @@ export default function WorkerOrdersPage() {
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28">
       <TwaShell />
-      <h1 className="text-lg font-bold gradient-text mb-3">Mening buyurtmalarim</h1>
+      <h1 className="text-lg font-bold gradient-text mb-3">{t("my_orders")}</h1>
       <div className="space-y-3">
         {rows.map((o) => (
-          <Link key={o.id} href={`/worker/order/${o.id}`}>
+          <Link
+            key={o.id}
+            href={`/worker/order/${o.id}`}
+            onClick={() => haptic.impact("light")}
+          >
             <GlassCard className="p-4">
               {o.contract_number && (
                 <p className="text-[10px] font-mono text-cyan-200/85 mb-1">{o.contract_number}</p>
               )}
-              <p className="text-sm">{o.requests?.summary || "Buyurtma"}</p>
+              <p className="text-sm">{o.requests?.summary || t("order")}</p>
               <p className="text-xs text-white/45 mt-1">
-                {statusUz[o.status] ?? o.status}
+                {t((statusKeys[o.status] || o.status) as any)} · {o.price_cents.toLocaleString()} {t("sum_currency")}
               </p>
             </GlassCard>
           </Link>

@@ -60,5 +60,16 @@ export async function GET() {
     })
   );
 
-  return NextResponse.json({ newOrders: orders ?? [], openRequests: openRequestsOut });
+  const { data: userProfile } = await sb
+    .from("users")
+    .select("wallet_balance_cents, worker_free_accepts_remaining")
+    .eq("id", ctx.userId)
+    .maybeSingle();
+
+  return NextResponse.json({
+    newOrders: orders ?? [],
+    openRequests: openRequestsOut,
+    balanceCents: userProfile?.wallet_balance_cents ?? 0,
+    freeAcceptsRemaining: userProfile?.worker_free_accepts_remaining ?? 0,
+  });
 }

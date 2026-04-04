@@ -11,7 +11,8 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
 import { FREE_ORDER_ACCEPTS, ORDER_ACCEPT_FEE_CENTS } from "@/lib/constants";
-import { hapticSuccess } from "@/lib/haptic";
+import { haptic, hapticSuccess, hapticError } from "@/lib/haptic";
+import { useI18n } from "@/lib/i18n";
 import { WORKER_TRADE_OPTIONS } from "@/lib/worker-trades";
 import { reverseGeocodeCity } from "@/lib/reverse-geocode";
 import { getWorkerTopupCardDisplay } from "@/lib/worker-topup-public";
@@ -59,6 +60,7 @@ type TgUser = {
 const tradeSet = new Set<string>(WORKER_TRADE_OPTIONS);
 
 export default function WorkerProfilePage() {
+  const { t } = useI18n();
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [tgUser, setTgUser] = useState<TgUser | null>(null);
@@ -182,15 +184,18 @@ export default function WorkerProfilePage() {
       const city = await reverseGeocodeCity(g.lat, g.lng);
       if (city) setCityName(city);
     } else {
+      hapticError();
       const WebApp = await loadWebApp();
-      WebApp.showAlert("Joylashuv aniqlanmadi. Xaritadan nuqtani tanlang.");
+      WebApp.showAlert(t("no_matches"));
     }
   };
 
   const toggleTrade = (label: string) => {
-    setSelectedTrades((prev) =>
-      prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]
-    );
+    setSelectedTrades((prev) => {
+        const next = prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label];
+        haptic.impact("light");
+        return next;
+    });
   };
 
   const removeLegacyExtra = (label: string) => {
@@ -201,7 +206,8 @@ export default function WorkerProfilePage() {
     const WebApp = await loadWebApp();
     const name = editDisplayName.trim();
     if (name.length < 2) {
-      WebApp.showAlert("Ism kamida 2 belgi bo‘lsin.");
+      hapticError();
+      WebApp.showAlert(t("name_min_chars"));
       return;
     }
     setProfileSaving(true);
@@ -213,14 +219,16 @@ export default function WorkerProfilePage() {
       }),
     });
     setProfileSaving(false);
-    WebApp.showAlert("Profil saqlandi.");
+    hapticSuccess();
+    WebApp.showAlert(t("profile_saved_toast"));
     await loadMe();
   };
 
   const saveDetails = async () => {
     const WebApp = await loadWebApp();
     if (selectedTrades.length === 0) {
-      WebApp.showAlert("Kamida bitta ustachilik turini tanlang.");
+      hapticError();
+      WebApp.showAlert(t("no_matches"));
       return;
     }
     setSaving(true);
@@ -236,7 +244,8 @@ export default function WorkerProfilePage() {
       }),
     });
     setSaving(false);
-    WebApp.showAlert("Saqlandi.");
+    hapticSuccess();
+    WebApp.showAlert(t("save_changes"));
     await loadMe();
   };
 
@@ -255,8 +264,9 @@ export default function WorkerProfilePage() {
     setReceiptUploading(false);
     const WebApp = await loadWebApp();
     if (!res.ok) {
+      hapticError();
       const j = (await res.json().catch(() => ({}))) as { error?: string };
-      WebApp.showAlert(j.error || "Chek yuklanmadi");
+      WebApp.showAlert(j.error || t("auth_failed"));
       return;
     }
     const j = (await res.json()) as { url?: string };
@@ -270,7 +280,8 @@ export default function WorkerProfilePage() {
   const requestTopup = async (amountCents: number) => {
     const WebApp = await loadWebApp();
     if (!receiptUrl) {
-      WebApp.showAlert("Avval chek rasmini yuklang.");
+      hapticError();
+      WebApp.showAlert(t("upload_receipt"));
       return;
     }
     setTopupLoading(true);
@@ -283,9 +294,7 @@ export default function WorkerProfilePage() {
       hapticSuccess();
       setReceiptUrl(null);
       setReceiptLabel(null);
-      WebApp.showAlert(
-        "So‘rov yuborildi. Admin chek va summani tasdiqlagach qabul balansiga tushadi."
-      );
+      WebApp.showAlert(t("topup_request_sent"));
     } else {
       WebApp.showAlert(r.error || "So‘rov yuborilmadi");
     }
@@ -303,7 +312,7 @@ export default function WorkerProfilePage() {
   if (!ready || !me) {
     return (
       <div className="min-h-dvh p-5 flex items-center justify-center text-white/60">
-        Yuklanmoqda…
+        {t("loading")}
       </div>
     );
   }
@@ -312,12 +321,12 @@ export default function WorkerProfilePage() {
     <div className="min-h-dvh px-4 pt-4 pb-28">
       <TwaShell />
       <div className="flex items-center gap-3 mb-3">
-        <h1 className="text-lg font-bold gradient-text flex-1 min-w-0">Usta profili</h1>
+        <h1 className="text-lg font-bold gradient-text flex-1 min-w-0">{t("worker_profile_title")}</h1>
         <ProfileExitDoor className="shrink-0" />
       </div>
 
       <GlassCard className="p-4 mb-3 space-y-3">
-        <p className="text-[10px] uppercase tracking-wider text-white/40">Shaxsiy ma’lumot</p>
+        <p className="text-[10px] uppercase tracking-wider text-white/40">{t("personal_info")}</p>
         <div className="flex items-start gap-3">
           {tgAvatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -333,25 +342,28 @@ export default function WorkerProfilePage() {
             </div>
           )}
           <div className="min-w-0 flex-1 space-y-2">
-            <p className="text-[10px] text-white/35">Ko‘rinish (Telegram rasmi alohida)</p>
+            <p className="text-[10px] text-white/35">{t("profile_appearance_hint")}</p>
             <input
               className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-              placeholder="Ism"
+              placeholder={t("name_placeholder")}
               value={editDisplayName}
               onChange={(e) => setEditDisplayName(e.target.value)}
             />
             <input
               className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-              placeholder="Telefon"
+              placeholder={t("phone_placeholder")}
               value={editPhone}
               onChange={(e) => setEditPhone(e.target.value)}
             />
             <PrimaryButton
               className="!py-2 !text-xs"
               disabled={profileSaving}
-              onClick={() => void saveProfileBasics()}
+              onClick={() => {
+                  haptic.impact("medium");
+                  void saveProfileBasics();
+              }}
             >
-              {profileSaving ? "Saqlanmoqda…" : "Profilni saqlash"}
+              {profileSaving ? t("saving") : t("save_profile_button")}
             </PrimaryButton>
           </div>
         </div>
@@ -359,34 +371,32 @@ export default function WorkerProfilePage() {
 
       <GlassCard className="p-4 mb-3 space-y-3 border border-cyan-500/20">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
-          Buyurtma qabul qilish
+          {t("leads_balance")}
         </p>
         <p className="text-[11px] text-white/50 leading-relaxed">
-          Dastlab{" "}
-          <strong className="text-white/80">{FREE_ORDER_ACCEPTS} ta buyurtma</strong> bepul qabul
-          qilinadi. Keyin har bir
-          yangi buyurtmani qabul qilganda hisobingizdan{" "}
-          <strong className="text-cyan-200">{acceptFeeStr} so‘m</strong> yechiladi.
+          {t("onboarding_info")}{" "}
+          <strong className="text-white/80">{FREE_ORDER_ACCEPTS} {t("free_accept_indicator")}</strong>{" "}
+          {t("accept_fee_hint")}{" "}
+          <strong className="text-cyan-200">{acceptFeeStr} {t("sum_currency")}</strong>.
         </p>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="rounded-lg bg-white/10 px-2.5 py-1 text-white/80">
-            Bepul qabul qoldi:{" "}
+            {t("free_accepts_remaining")}:{" "}
             <strong className="text-cyan-200 tabular-nums">{freeAcceptsLeft}</strong>
           </span>
           <span className="rounded-lg bg-white/10 px-2.5 py-1 text-white/80">
-            Qabul balansi:{" "}
+            {t("leads_balance")}:{" "}
             <strong className="text-white tabular-nums">
-              {leadsBal.toLocaleString("uz-UZ")} so‘m
+              {leadsBal.toLocaleString()} {t("sum_currency")}
             </strong>
           </span>
         </div>
         <div className="rounded-xl border border-white/10 bg-black/25 p-3 space-y-2">
-          <p className="text-[10px] uppercase text-white/40">To‘ldirish (karta)</p>
+          <p className="text-[10px] uppercase text-white/40">{t("topup_card")}</p>
           <p className="text-xs text-white/70 font-mono tracking-wide">{cardDisplay.number}</p>
-          <p className="text-[11px] text-white/55">{cardDisplay.holder}</p>
+          <p className="text-[11px] text-white/55">{t("topup_holder")}: {cardDisplay.holder}</p>
           <p className="text-[10px] text-white/40 leading-relaxed">
-            1) Chekni yuklang. 2) Kartaga pul o‘tkazing. 3) Summani tanlang — so‘rov admin oldiga
-            tushadi; tasdiqlangach balansga qo‘shiladi.
+            {t("topup_instructions")}
           </p>
         </div>
         <input
@@ -400,13 +410,16 @@ export default function WorkerProfilePage() {
           type="button"
           disabled={receiptUploading}
           className="w-full rounded-xl border border-amber-400/25 bg-amber-500/10 py-2.5 text-sm text-amber-100/95 disabled:opacity-45"
-          onClick={() => receiptInputRef.current?.click()}
+          onClick={() => {
+              haptic.impact("light");
+              receiptInputRef.current?.click();
+          }}
         >
-          {receiptUploading ? "Yuklanmoqda…" : "Chek rasmini yuklash (majburiy)"}
+          {receiptUploading ? t("loading") : t("upload_receipt")}
         </button>
         {receiptUrl && (
           <p className="text-[11px] text-emerald-300/90">
-            Chek qabul qilindi{receiptLabel ? `: ${receiptLabel}` : ""}
+            {t("receipt_attached")}{receiptLabel ? `: ${receiptLabel}` : ""}
           </p>
         )}
         <div className="flex flex-wrap gap-2">
@@ -420,9 +433,12 @@ export default function WorkerProfilePage() {
               type="button"
               disabled={topupLoading || !receiptUrl}
               className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs disabled:opacity-45"
-              onClick={() => void requestTopup(p.cents)}
+              onClick={() => {
+                  haptic.impact("medium");
+                  void requestTopup(p.cents);
+              }}
             >
-              {p.label} · so‘rov
+              {p.label} · {t("topup_request_btn")}
             </button>
           ))}
         </div>
@@ -430,21 +446,20 @@ export default function WorkerProfilePage() {
 
       <GlassCard className="p-4 mb-3 space-y-2 border border-emerald-500/15">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
-          Daromad
+          {t("earnings_label")}
         </p>
         <p className="text-lg font-bold text-emerald-200 tabular-nums">
-          {earnings.toLocaleString("uz-UZ")} so‘m
+          {earnings.toLocaleString()} {t("sum_currency")}
         </p>
         <p className="text-[11px] text-white/45 leading-relaxed">
-          Mijoz ishni yakunlab, to‘lovni tasdiqlagach bu yerga yoziladi.
+          {t("earnings_info")}
         </p>
       </GlassCard>
 
       <GlassCard className="p-4 mb-3 space-y-3">
-        <p className="text-xs text-white/45 uppercase">Ish profili</p>
+        <p className="text-xs text-white/45 uppercase">{t("work_profile_label")}</p>
         <p className="text-[11px] text-white/40 leading-relaxed">
-          Xaritada nuqtani suring yoki xaritani bosing — shahar nomi avtomatik aniqlanadi (ixtiyoriy
-          tahrirlash mumkin). «Joylashuvni aniqlash» GPS / Telegram orqali joriy nuqtani qo‘yadi.
+          {t("map_instructions")}
         </p>
         <MiniMapPicker
           lat={mapLat}
@@ -460,26 +475,29 @@ export default function WorkerProfilePage() {
           type="button"
           disabled={locLoading}
           className="w-full rounded-xl bg-white/5 border border-white/10 py-2.5 text-sm disabled:opacity-50"
-          onClick={() => void pickLoc()}
+          onClick={() => {
+              haptic.impact("medium");
+              void pickLoc();
+          }}
         >
-          {locLoading ? "Aniqlanmoqda…" : "Joylashuvni aniqlash"}
+          {locLoading ? t("loading") : t("get_location_gps")}
         </button>
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[10px] uppercase text-white/40">Ustachilik turlari</p>
+            <p className="text-[10px] uppercase text-white/40">{t("trades_label")}</p>
             <span className="text-[10px] text-white/45 tabular-nums">
-              Tanlangan: {selectedTrades.length}
+              {t("trades_selected_count")}: {selectedTrades.length}
             </span>
           </div>
           <input
             className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-            placeholder="Qidirish (masalan: santex, elektr…)"
+            placeholder={t("trades_search_placeholder")}
             value={tradeQuery}
             onChange={(e) => setTradeQuery(e.target.value)}
           />
           {legacyExtras.length > 0 && (
             <div className="space-y-1">
-              <p className="text-[10px] text-amber-200/70">Eski tanlovlar (ro‘yxatdan tashqari)</p>
+              <p className="text-[10px] text-amber-200/70">{t("legacy_trades")}</p>
               <div className="flex flex-wrap gap-1.5">
                 {legacyExtras.map((x) => (
                   <span
@@ -490,8 +508,11 @@ export default function WorkerProfilePage() {
                     <button
                       type="button"
                       className="text-rose-300"
-                      onClick={() => removeLegacyExtra(x)}
-                      aria-label="Olib tashlash"
+                      onClick={() => {
+                          haptic.impact("light");
+                          removeLegacyExtra(x);
+                      }}
+                      aria-label={t("remove_category")}
                     >
                       ×
                     </button>
@@ -502,7 +523,7 @@ export default function WorkerProfilePage() {
           )}
           <div className="max-h-56 overflow-y-auto rounded-xl border border-white/10 bg-black/20 pr-1">
             {filteredTradeOptions.length === 0 && (
-              <p className="p-3 text-xs text-white/40">Hech narsa topilmadi.</p>
+              <p className="p-3 text-xs text-white/40">{t("no_matches")}</p>
             )}
             <ul className="divide-y divide-white/5">
               {filteredTradeOptions.map((t) => {
@@ -532,32 +553,35 @@ export default function WorkerProfilePage() {
         </div>
         <textarea
           className="w-full min-h-[72px] rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-          placeholder="O‘zingiz haqingizda qisqa (ixtiyoriy)"
+          placeholder={t("bio_placeholder")}
           value={bio}
           onChange={(e) => setBio(e.target.value)}
         />
         <input
           className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-          placeholder="Shahar (avtomatik yoki qo‘lda)"
+          placeholder={t("city_placeholder")}
           value={cityName}
           onChange={(e) => setCityName(e.target.value)}
         />
-        <PrimaryButton disabled={saving} onClick={() => void saveDetails()}>
-          {saving ? "Saqlanmoqda…" : "Ish profilini saqlash"}
+        <PrimaryButton disabled={saving} onClick={() => {
+            haptic.impact("medium");
+            void saveDetails();
+        }}>
+          {saving ? t("saving") : t("save_work_profile")}
         </PrimaryButton>
         <p className="text-[10px] text-white/35">
-          Portfolio: pastki menyudan «Portfolio» bo‘limiga o‘ting.
+          {t("portfolio_nav_hint")}
         </p>
       </GlassCard>
 
       <GlassCard className="p-4 mb-3 space-y-3">
-        <p className="text-xs text-white/45 uppercase">Mijozlar fikri</p>
+        <p className="text-xs text-white/45 uppercase">{t("reviews_label")}</p>
         <p className="text-[11px] text-white/40 leading-relaxed">
-          Yakunlangan buyurtmadan keyin mijoz baho va izoh qoldiradi.
+          {t("reviews_info")}
         </p>
-        {reviewsLoading && <p className="text-xs text-white/45">Yuklanmoqda…</p>}
+        {reviewsLoading && <p className="text-xs text-white/45">{t("loading")}</p>}
         {!reviewsLoading && reviews.length === 0 && (
-          <p className="text-xs text-white/40">Hozircha sharh yo‘q.</p>
+          <p className="text-xs text-white/40">{t("no_reviews")}</p>
         )}
         <div className="space-y-2 max-h-64 overflow-y-auto">
           {reviews.map((rev, idx) => {

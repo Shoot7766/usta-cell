@@ -6,6 +6,9 @@ import { loadWebApp } from "@/lib/twa";
 import { apiJson } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { TwaShell } from "@/components/telegram/TwaShell";
+import { haptic } from "@/lib/haptic";
+import { useI18n } from "@/lib/i18n";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 type Row = {
   id: string;
@@ -16,7 +19,9 @@ type Row = {
 };
 
 export default function ClientOrdersPage() {
+  const { t } = useI18n();
   const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     void loadWebApp().then((WebApp) => {
@@ -26,6 +31,7 @@ export default function ClientOrdersPage() {
 
   const fetchOrders = async () => {
     const r = await apiJson<{ orders: Row[] }>("/api/orders");
+    setLoading(false);
     if (r.ok && r.data) setRows(r.data.orders);
   };
 
@@ -49,25 +55,35 @@ export default function ClientOrdersPage() {
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28">
       <TwaShell />
-      <h1 className="text-lg font-bold gradient-text mb-3">Buyurtmalar</h1>
+      <h1 className="text-lg font-bold gradient-text mb-3">{t("my_orders")}</h1>
       <div className="space-y-3">
-        {rows.map((o) => (
-          <Link key={o.id} href={`/client/order/${o.id}`}>
-            <GlassCard className="p-4">
+        {loading && (
+          <>
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </>
+        )}
+        {!loading && rows.map((o) => (
+          <Link
+            key={o.id}
+            href={`/client/order/${o.id}`}
+            onClick={() => haptic.impact("light")}
+          >
+            <GlassCard className="p-4" glow>
               {o.contract_number && (
                 <p className="text-[10px] font-mono text-cyan-200/85 mb-1">{o.contract_number}</p>
               )}
               <p className="text-sm font-medium text-white">
-                {o.requests?.summary || "Buyurtma"}
+                {o.requests?.summary || t("order")}
               </p>
               <p className="text-xs text-white/45 mt-1">
-                {o.status} · {o.price_cents.toLocaleString()} so‘m
+                {t(`status_${o.status}` as any)} · {o.price_cents.toLocaleString()} {t("sum_currency")}
               </p>
             </GlassCard>
           </Link>
         ))}
-        {rows.length === 0 && (
-          <p className="text-sm text-white/45">Hozircha buyurtma yo‘q.</p>
+        {!loading && rows.length === 0 && (
+          <p className="text-sm text-white/45">{t("no_new_orders")}</p>
         )}
       </div>
     </div>

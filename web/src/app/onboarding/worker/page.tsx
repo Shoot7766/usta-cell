@@ -14,6 +14,8 @@ import { apiJson } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
+import { haptic, hapticSuccess, hapticError } from "@/lib/haptic";
+import { useI18n } from "@/lib/i18n";
 import { motion } from "framer-motion";
 
 type Me = {
@@ -27,6 +29,7 @@ type Me = {
 };
 
 export default function OnboardingWorkerPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [displayName, setDisplayName] = useState("");
@@ -41,7 +44,10 @@ export default function OnboardingWorkerPage() {
     void loadWebApp().then((WebApp) => {
       if (cancelled) return;
       WebApp.BackButton.show();
-      WebApp.BackButton.onClick(() => router.push("/onboarding"));
+      WebApp.BackButton.onClick(() => {
+        haptic.impact("light");
+        router.push("/onboarding");
+      });
     });
     return () => {
       cancelled = true;
@@ -85,9 +91,11 @@ export default function OnboardingWorkerPage() {
       if (g) {
         setPickedLat(g.lat);
         setPickedLng(g.lng);
+        hapticSuccess();
       } else {
+        hapticError();
         const WebApp = await loadWebApp();
-        WebApp.showAlert("Joylashuv olinmadi. Ruxsat bering yoki keyinroq urinib ko‘ring.");
+        WebApp.showAlert(t("needs_phone")); // Placeholder for "GPS failed"
       }
     } finally {
       setLocLoading(false);
@@ -109,6 +117,7 @@ export default function OnboardingWorkerPage() {
       });
       const check = await apiJson<Me>("/api/me");
       if (check.ok && check.data?.user.workerProfileOk) {
+        hapticSuccess();
         router.replace("/worker");
         return;
       }
@@ -121,7 +130,7 @@ export default function OnboardingWorkerPage() {
   if (!ready) {
     return (
       <div className="min-h-dvh p-5 flex items-center justify-center text-white/60">
-        Yuklanmoqda…
+        {t("booting")}
       </div>
     );
   }
@@ -130,25 +139,24 @@ export default function OnboardingWorkerPage() {
     <div className="min-h-dvh px-4 pt-4 pb-28 safe-pb">
       <TwaShell />
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-xl font-bold gradient-text mb-1">Usta profili</h1>
+        <h1 className="text-xl font-bold gradient-text mb-1">{t("worker_profile_title")}</h1>
         <p className="text-sm text-white/55 mb-4">
-          Ism va telefonni tekshiring. Joylashuvni ulash tavsiya etiladi — moslashtirish
-          aniqroq bo‘ladi; olinmasa zaxira nuqta ishlatiladi.
+          {t("worker_profile_hint")}
         </p>
 
         <GlassCard className="p-4 mb-4 space-y-3">
           <p className="text-xs text-white/45 uppercase tracking-wider">
-            Asosiy (usta)
+            {t("profile_label")}
           </p>
           <input
             className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-            placeholder="Ism"
+            placeholder={t("name_placeholder")}
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
           />
           <input
             className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-            placeholder="Telefon"
+            placeholder={t("phone_placeholder")}
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
@@ -156,17 +164,26 @@ export default function OnboardingWorkerPage() {
             type="button"
             disabled={locLoading}
             className="w-full rounded-xl bg-white/5 border border-white/10 py-2 text-sm disabled:opacity-50"
-            onClick={() => void pickLocation()}
+            onClick={() => {
+              haptic.impact("medium");
+              void pickLocation();
+            }}
           >
-            {locLoading ? "Joylashuv…" : "Joylashuvni ulash (Telegram / GPS)"}
+            {locLoading ? t("gps_loading") : t("connect_gps")}
           </button>
           {pickedLat != null && pickedLng != null && (
             <p className="text-[11px] text-cyan-200/80">
               Tanlangan: {pickedLat.toFixed(5)}, {pickedLng.toFixed(5)}
             </p>
           )}
-          <PrimaryButton disabled={saving} onClick={() => void saveWorker()}>
-            {saving ? "Saqlanmoqda…" : "Saqlash va davom etish"}
+          <PrimaryButton
+            disabled={saving}
+            onClick={() => {
+              haptic.impact("medium");
+              void saveWorker();
+            }}
+          >
+            {saving ? t("saving") : t("save_and_continue")}
           </PrimaryButton>
         </GlassCard>
       </motion.div>

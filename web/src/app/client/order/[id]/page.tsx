@@ -8,7 +8,8 @@ import { apiJson } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
-import { hapticSuccess } from "@/lib/haptic";
+import { haptic, hapticSuccess, hapticError } from "@/lib/haptic";
+import { useI18n } from "@/lib/i18n";
 import { getBestEffortLatLng } from "@/lib/geo";
 import { FALLBACK_REGION_LAT, FALLBACK_REGION_LNG } from "@/lib/worker-defaults";
 
@@ -22,13 +23,13 @@ const MiniMapPicker = dynamic(
   }
 );
 
-const holatUz: Record<string, string> = {
-  pending_worker: "Usta so‘rovingizni band qildi — u tasdiqlaydi",
-  new: "Yangi",
-  accepted: "Qabul qilindi",
-  in_progress: "Ishlanmoqda",
-  completed: "Yakunlandi",
-  canceled: "Bekor qilingan",
+const statusKeys: Record<string, string> = {
+  pending_worker: "status_pending_worker",
+  new: "status_new",
+  accepted: "status_accepted",
+  in_progress: "status_in_progress",
+  completed: "status_completed",
+  canceled: "status_canceled",
 };
 
 type OrderPayload = {
@@ -48,6 +49,7 @@ type OrderPayload = {
 };
 
 export default function ClientOrderPage() {
+  const { t } = useI18n();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [status, setStatus] = useState<string>("new");
@@ -69,7 +71,10 @@ export default function ClientOrderPage() {
     void loadWebApp().then((WebApp) => {
       if (cancelled) return;
       WebApp.BackButton.show();
-      WebApp.BackButton.onClick(() => router.push("/client/orders"));
+      WebApp.BackButton.onClick(() => {
+        haptic.impact("light");
+        router.push("/client/chat"); // Default to chat if we don't have list
+      });
     });
     return () => {
       cancelled = true;
@@ -150,10 +155,20 @@ export default function ClientOrderPage() {
   const openDispute = async () => {
     const reason = window.prompt("Muammo sababi (kamida 10 belgi)") || "";
     if (reason.length < 10) return;
+    haptic.impact("medium");
+    
+    const WebApp = await loadWebApp();
+    const ok = await new Promise(resolve => {
+        WebApp.showConfirm("Nizoni rasmiylashtirasizmi?", (confirmed: boolean) => resolve(confirmed));
+    });
+    if (!ok) return;
+    haptic.impact("medium");
+
     await apiJson("/api/disputes", {
       method: "POST",
       body: JSON.stringify({ orderId: id, reason }),
     });
+    hapticSuccess();
     await load();
   };
 
@@ -184,7 +199,11 @@ export default function ClientOrderPage() {
     if (r.ok) {
       hapticSuccess();
       load();
-    } else if (r.error) window.alert(r.error);
+    } else if (r.error) {
+        hapticError();
+        const WebApp = await loadWebApp();
+        WebApp.showAlert(r.error);
+    }
   };
 
   const sendReview = async () => {
@@ -203,28 +222,30 @@ export default function ClientOrderPage() {
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28">
       <TwaShell />
-      <h1 className="text-lg font-bold gradient-text mb-1">Buyurtma</h1>
+      <h1 className="text-lg font-bold gradient-text mb-1">{t("order")}</h1>
       <GlassCard className="p-4 mb-4">
         <p className="text-xs text-white/45">
-          Holat: {holatUz[status] ?? status}
+          {t("order_status")}: {t((statusKeys[status] || status) as any)}
         </p>
         {requestSummary.trim() && (
           <p className="text-xs text-white/75 mt-2 leading-relaxed">{requestSummary}</p>
         )}
         {workerName.trim() && (
-          <p className="text-[11px] text-white/45 mt-2">Usta: {workerName}</p>
+          <p className="text-[11px] text-white/45 mt-2">{t("worker_role")}: {workerName}</p>
         )}
         {priceCents > 0 && (
           <p className="text-[11px] text-white/45 mt-1">
             Taxminiy narx:{" "}
-            <span className="text-neon font-medium">{priceCents.toLocaleString()} so‘m</span>
+            <span className="text-neon font-medium">
+              {priceCents.toLocaleString()} {t("sum_currency")}
+            </span>
           </p>
         )}
       </GlassCard>
 
       {clientIssueImageUrl && (
         <GlassCard className="p-4 mb-4 space-y-2 border border-white/10">
-          <p className="text-[11px] uppercase text-white/40">Siz yuborgan rasm</p>
+          <p className="text-[11px] uppercase text-white/40">{t("client_image")}</p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={clientIssueImageUrl}
@@ -237,7 +258,7 @@ export default function ClientOrderPage() {
 
       {orderRequestId && !["canceled", "completed"].includes(status) && (
           <GlassCard className="p-4 mb-4 space-y-2 border border-cyan-400/15">
-            <p className="text-xs text-white/45 uppercase">Manzil</p>
+            <p className="text-xs text-white/45 uppercase">{t("address")}</p>
             <p className="text-[11px] text-white/50 leading-relaxed">
               Usta keladigan joyni xarita va matn bilan yuboring.
             </p>
@@ -273,7 +294,7 @@ export default function ClientOrderPage() {
                 className="rounded-xl bg-white/5 border border-white/10 py-2 text-xs disabled:opacity-50"
                 onClick={() => void saveOrderLocation()}
               >
-                {locBusy ? "…" : "Manzilni saqlash"}
+                {locBusy ? "…" : t("save")}
               </button>
             </div>
             {contractAddress && (
@@ -284,19 +305,19 @@ export default function ClientOrderPage() {
 
       {["new", "pending_worker"].includes(status) && (
         <PrimaryButton variant="ghost" onClick={cancel}>
-          Bekor qilish (qabuldan oldin bepul)
+          {t("cancel")}
         </PrimaryButton>
       )}
 
       {["accepted", "in_progress"].includes(status) && (
         <PrimaryButton className="mt-3 !py-2 !text-xs" variant="ghost" onClick={openDispute}>
-          Nizoni xabar qilish
+          {t("report_dispute")}
         </PrimaryButton>
       )}
 
       {status === "completed" && (
         <GlassCard className="p-4 mt-4 space-y-2">
-          <p className="text-sm font-semibold">Baholang</p>
+          <p className="text-sm font-semibold">{t("rate_experience")}</p>
           <input
             type="range"
             min={1}
@@ -309,11 +330,11 @@ export default function ClientOrderPage() {
           />
           <textarea
             className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm"
-            placeholder="Izoh (ixtiyoriy)"
+            placeholder={t("comment_hint")}
             value={review.comment}
             onChange={(e) => setReview((r) => ({ ...r, comment: e.target.value }))}
           />
-          <PrimaryButton onClick={sendReview}>Yuborish</PrimaryButton>
+          <PrimaryButton onClick={sendReview}>{t("send")}</PrimaryButton>
         </GlassCard>
       )}
     </div>

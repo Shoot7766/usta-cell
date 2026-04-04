@@ -9,7 +9,9 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
 import { motion, useMotionValue, useTransform, PanInfo } from "framer-motion";
-import { hapticLight } from "@/lib/haptic";
+import { haptic, hapticLight, hapticSuccess } from "@/lib/haptic";
+import { useI18n } from "@/lib/i18n";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 type W = {
   user_id: string;
@@ -25,10 +27,10 @@ type W = {
   portfolio_preview?: { image_url: string; caption?: string | null }[];
 };
 
-const badgeUz: Record<string, string> = {
-  top_worker: "Top usta",
-  fast_response: "Tez javob",
-  nearby: "Yaqin",
+const badgeKeys: Record<string, string> = {
+  top_worker: "top_worker",
+  fast_response: "fast_response",
+  nearby: "nearby",
 };
 
 function WorkerSwipeCard({
@@ -37,12 +39,14 @@ function WorkerSwipeCard({
   busy,
   anyOrdering,
   requestId,
+  t,
 }: {
   w: W;
   onPick: () => void;
   busy: boolean;
   anyOrdering: boolean;
   requestId: string;
+  t: any;
 }) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-120, 120], [-6, 6]);
@@ -69,11 +73,11 @@ function WorkerSwipeCard({
         <div className="flex justify-between items-start gap-2">
           <div>
             <p className="font-semibold text-white">
-              {w.display_name || "Usta"}
+              {w.display_name || t("worker_role")}
             </p>
             <p className="text-xs text-white/45">
-              ⭐ {w.rating_avg.toFixed(2)} · {w.rating_count ?? 0} sharh ·{" "}
-              {w.distance_km != null ? `${w.distance_km.toFixed(1)} km` : "masofa ?"}
+              ⭐ {w.rating_avg.toFixed(2)} · {w.rating_count ?? 0} {t("reviews_count")} ·{" "}
+              {w.distance_km != null ? `${w.distance_km.toFixed(1)} km` : `? ${t("distance")}`}
             </p>
           </div>
           <span className="text-[11px] px-2 py-1 rounded-full bg-cyan-500/15 text-cyan-200 border border-cyan-400/20">
@@ -86,18 +90,18 @@ function WorkerSwipeCard({
               key={b}
               className="text-[10px] px-2 py-0.5 rounded-full bg-fuchsia-500/15 text-fuchsia-100 border border-fuchsia-400/15"
             >
-              {badgeUz[b] ?? b}
+              {t(badgeKeys[b] || b)}
             </span>
           ))}
         </div>
         {(w.price_min_cents > 0 || w.price_max_cents > 0) && (
           <p className="text-xs text-white/55 mt-2">
             Narx: {w.price_min_cents.toLocaleString()} — {w.price_max_cents.toLocaleString()}{" "}
-            so‘m
+            sum
           </p>
         )}
         {w.price_min_cents <= 0 && w.price_max_cents <= 0 && (
-          <p className="text-xs text-white/45 mt-2">Narx telefonda kelishiladi.</p>
+          <p className="text-xs text-white/45 mt-2">{t("price_negotiable")}</p>
         )}
         {w.portfolio_preview && w.portfolio_preview.length > 0 && (
           <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 -mx-1 px-1">
@@ -114,7 +118,7 @@ function WorkerSwipeCard({
           </div>
         )}
         <PrimaryButton className="mt-3 !py-2.5" disabled={anyOrdering} onClick={onPick}>
-          {busy ? "Buyurtma yaratilmoqda…" : "Tanlash"}
+          {busy ? t("loading") : t("pick")}
         </PrimaryButton>
         <Link
           href={
@@ -123,11 +127,12 @@ function WorkerSwipeCard({
               : `/client/worker/${w.user_id}`
           }
           className="mt-2 block text-center text-xs text-cyan-300/90 underline underline-offset-2"
+          onClick={() => haptic.impact("light")}
         >
-          Profil va portfolio (izohlar bilan)
+          {t("portfolio")} ({t("comment_hint")})
         </Link>
         <p className="text-[10px] text-white/35 mt-2 text-center">
-          O‘ngga suring — tez tanlash
+          {t("swipe_hint")}
         </p>
       </GlassCard>
     </motion.div>
@@ -135,6 +140,7 @@ function WorkerSwipeCard({
 }
 
 function WorkersPageContent() {
+  const { t } = useI18n();
   const router = useRouter();
   const sp = useSearchParams();
   const requestId = sp.get("requestId") || "";
@@ -146,7 +152,10 @@ function WorkersPageContent() {
     void loadWebApp().then((WebApp) => {
       if (cancelled) return;
       WebApp.BackButton.show();
-      WebApp.BackButton.onClick(() => router.push("/client/chat"));
+      WebApp.BackButton.onClick(() => {
+        haptic.impact("light");
+        router.push("/client/chat");
+      });
     });
     return () => {
       cancelled = true;
@@ -183,20 +192,20 @@ function WorkersPageContent() {
     });
     setOrderingId(null);
     if (r.ok && r.data?.orderId) {
+      hapticSuccess();
       router.push(`/client/order/${r.data.orderId}`);
       return;
     }
     const WebApp = await loadWebApp();
-    WebApp.showAlert(r.error || "Buyurtma yaratilmadi");
+    WebApp.showAlert(r.error || t("auth_failed"));
   };
 
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28">
       <TwaShell />
-      <h1 className="text-lg font-bold gradient-text mb-1">Ustalar</h1>
+      <h1 className="text-lg font-bold gradient-text mb-1">{t("workers_title")}</h1>
       <p className="text-xs text-white/50 mb-3">
-        Reyting va mos xizmat ustuvor tartibda. Telefonda narxni kelishib, buyurtmada
-        yozib qo‘ying — usta roziligini tasdiqlaydi.
+        {t("workers_hint")}
       </p>
       {sorted.map((w) => (
         <WorkerSwipeCard
@@ -205,11 +214,15 @@ function WorkersPageContent() {
           requestId={requestId}
           busy={orderingId === w.user_id}
           anyOrdering={orderingId !== null}
-          onPick={() => void pickWorker(w)}
+          onPick={() => {
+              haptic.impact("medium");
+              void pickWorker(w);
+          }}
+          t={t}
         />
       ))}
       {sorted.length === 0 && requestId && (
-        <p className="text-sm text-white/45">Hozircha mos usta topilmadi.</p>
+        <p className="text-sm text-white/45">{t("no_matches")}</p>
       )}
     </div>
   );
@@ -219,8 +232,11 @@ export default function WorkersPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-dvh p-4 text-white/50 flex items-center justify-center">
-          Yuklanmoqda…
+        <div className="min-h-dvh p-5 space-y-4">
+          <Skeleton className="h-8 w-1/3" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-40 w-full" />
         </div>
       }
     >

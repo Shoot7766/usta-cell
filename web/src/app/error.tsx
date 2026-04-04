@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import { loadWebApp } from "@/lib/twa";
+import { useI18n } from "@/lib/i18n";
+import { hapticError } from "@/lib/haptic";
 
 export default function Error({
   error,
@@ -9,7 +12,14 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { t } = useI18n();
+
   useEffect(() => {
+    hapticError();
+    void loadWebApp().then((WebApp) => {
+      WebApp.showAlert(error.message || "Xatolik yuz berdi");
+    });
+    
     void fetch("/api/telemetry", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -26,14 +36,14 @@ export default function Error({
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center bg-[#070a12] px-6 text-[#e8f0ff]">
       <p className="text-sm text-red-300/90 text-center mb-2">
-        {error.message || "Xatolik yuz berdi"}
+        {error.message || t("auth_failed")}
       </p>
       <button
         type="button"
         onClick={() => reset()}
         className="mt-2 rounded-2xl bg-gradient-to-r from-cyan-400/90 to-fuchsia-500/90 px-6 py-3 text-sm font-semibold text-slate-950"
       >
-        Qayta urinish
+        {t("retry")}
       </button>
     </div>
   );

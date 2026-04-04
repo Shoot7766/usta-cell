@@ -11,9 +11,12 @@ import {
   FALLBACK_REGION_LNG,
 } from "@/lib/worker-defaults";
 import { apiJson } from "@/lib/api-client";
+import { haptic, hapticSuccess } from "@/lib/haptic";
+import { useI18n } from "@/lib/i18n";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { motion } from "framer-motion";
 
 type Me = {
@@ -29,6 +32,7 @@ type Me = {
 };
 
 export default function OnboardingPage() {
+  const { t, lang, setLang } = useI18n();
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [displayName, setDisplayName] = useState("");
@@ -41,7 +45,10 @@ export default function OnboardingPage() {
     void loadWebApp().then((WebApp) => {
       if (cancelled) return;
       WebApp.BackButton.show();
-      WebApp.BackButton.onClick(() => router.push("/"));
+      WebApp.BackButton.onClick(() => {
+        haptic.impact("light");
+        router.push("/");
+      });
     });
     return () => {
       cancelled = true;
@@ -131,18 +138,51 @@ export default function OnboardingPage() {
     );
     setRoleLoading(false);
     if (r.ok) {
+      hapticSuccess();
       await apiJson("/api/auth/sync-session", { method: "POST" });
       if (typeof window !== "undefined") window.location.reload();
       return;
     }
     const WebApp = await loadWebApp();
-    WebApp.showAlert(r.error || "Rol almashmadi");
+    WebApp.showAlert(r.error || t("auth_failed"));
   };
+
+  const handleContinue = () => {
+    if (!me) return;
+    haptic.impact("medium");
+    router.replace(me.user.role === "worker" ? "/worker" : "/client/chat");
+  };
+
+  useEffect(() => {
+    const show =
+      me?.user.profileCompleted &&
+      (me.user.role !== "worker" || me.user.workerProfileOk);
+    
+    void loadWebApp().then((WebApp) => {
+      if (show) {
+        WebApp.MainButton.setText(t("continue"));
+        WebApp.MainButton.show();
+        WebApp.MainButton.onClick(handleContinue);
+      } else {
+        WebApp.MainButton.hide();
+      }
+    });
+
+    return () => {
+      void loadWebApp().then((WebApp) => {
+        WebApp.MainButton.offClick(handleContinue);
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me, t]);
 
   if (!me) {
     return (
-      <div className="min-h-dvh p-5 flex items-center justify-center text-white/60">
-        Yuklanmoqda…
+      <div className="min-h-dvh p-5 space-y-4">
+        <Skeleton className="h-8 w-1/2" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-48 w-full" />
       </div>
     );
   }
@@ -153,13 +193,24 @@ export default function OnboardingPage() {
     <div className="min-h-dvh px-4 pt-4 pb-28 safe-pb">
       <TwaShell />
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-xl font-bold gradient-text mb-1">Onboarding</h1>
+        <header className="flex justify-between items-start mb-1">
+          <h1 className="text-xl font-bold gradient-text">{t("onboarding_title")}</h1>
+          <button
+            onClick={() => {
+              haptic.selection();
+              setLang(lang === "uz" ? "ru" : "uz");
+            }}
+            className="text-[10px] px-2 py-1 rounded-lg bg-white/5 border border-white/10 uppercase"
+          >
+            {lang === "uz" ? "O'zb" : "Рус"}
+          </button>
+        </header>
         <p className="text-sm text-white/55 mb-4">
-          Profil to‘liq bo‘lmasa, buyurtma berish yoki ish qabul qilish bloklanadi.
+          {t("onboarding_hint")}
         </p>
 
         <GlassCard className="p-4 mb-4 space-y-3">
-          <p className="text-xs text-white/45 uppercase tracking-wider">Rol</p>
+          <p className="text-xs text-white/45 uppercase tracking-wider">{t("role_label")}</p>
           <div className="flex gap-2">
             <motion.button
               type="button"
@@ -175,9 +226,12 @@ export default function OnboardingPage() {
                   ? "border-cyan-400/45 bg-gradient-to-br from-cyan-500/25 to-fuchsia-500/10 text-white shadow-[0_0_24px_-10px_rgba(34,211,238,0.55)]"
                   : "border-white/[0.07] bg-black/45 text-white/45"
               }`}
-              onClick={() => void switchRole("client")}
+              onClick={() => {
+                haptic.impact("medium");
+                void switchRole("client");
+              }}
             >
-              Mijoz
+              {t("client_role")}
             </motion.button>
             <motion.button
               type="button"
@@ -193,47 +247,50 @@ export default function OnboardingPage() {
                   ? "border-fuchsia-400/45 bg-gradient-to-br from-fuchsia-500/25 to-cyan-500/10 text-white shadow-[0_0_24px_-10px_rgba(217,70,239,0.5)]"
                   : "border-white/[0.07] bg-black/45 text-white/45"
               }`}
-              onClick={() => void switchRole("worker")}
+              onClick={() => {
+                haptic.impact("heavy");
+                void switchRole("worker");
+              }}
             >
-              Usta
+              {t("worker_role")}
             </motion.button>
           </div>
         </GlassCard>
 
         <GlassCard className="p-4 mb-4 space-y-3">
-          <p className="text-xs text-white/45 uppercase tracking-wider">Asosiy profil</p>
+          <p className="text-xs text-white/45 uppercase tracking-wider">{t("profile_label")}</p>
           <input
             className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm outline-none focus:border-cyan-400/40"
-            placeholder="Ism"
+            placeholder={t("name_placeholder")}
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
           />
           <input
             className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm outline-none focus:border-cyan-400/40"
-            placeholder="Telefon"
+            placeholder={t("phone_placeholder")}
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
           <p className="text-[11px] text-white/40">
-            Ism Telegramdan avtomatik keladi. Telefonni ilova ochilganda so‘ralgan bo‘lishi
-            mumkin; yo‘q bo‘lsa, bu yerga qo‘lda yozing. Usta sifatida saqlashda joylashuv
-            Telegram / brauzer orqali olinadi (bo‘lmasa Toshkent atrofi zaxirasi).
+            {t("onboarding_info")}
           </p>
-          <PrimaryButton disabled={saveLoading} onClick={() => void saveBase()}>
-            {saveLoading ? "Joylashuv tekshirilmoqda…" : "O‘zgarishlarni saqlash"}
+          <PrimaryButton
+            disabled={saveLoading}
+            onClick={() => {
+              haptic.impact("medium");
+              void saveBase();
+            }}
+          >
+            {saveLoading ? t("checking_loc") : t("save_changes")}
           </PrimaryButton>
         </GlassCard>
 
-        {me.user.profileCompleted &&
-          (role !== "worker" || me.user.workerProfileOk) && (
-            <PrimaryButton
-              onClick={() =>
-                router.replace(role === "worker" ? "/worker" : "/client/chat")
-              }
-            >
-              Davom etish
-            </PrimaryButton>
-          )}
+        {/* MainButton replaces this, keep empty or small hint for non-TWA */}
+        {me.user.profileCompleted && (role !== "worker" || me.user.workerProfileOk) && (
+          <p className="text-[10px] text-center text-white/30 italic">
+            Telegram "{t("continue")}" tugmasini bosing
+          </p>
+        )}
       </motion.div>
     </div>
   );

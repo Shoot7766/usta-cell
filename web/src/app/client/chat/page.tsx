@@ -9,7 +9,8 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
 import { motion, AnimatePresence } from "framer-motion";
-import { hapticSuccess } from "@/lib/haptic";
+import { haptic, hapticSuccess } from "@/lib/haptic";
+import { useI18n } from "@/lib/i18n";
 
 type ThreadMsg = { role: "user" | "assistant"; content: string };
 
@@ -88,6 +89,7 @@ function displayUserLine(content: string): string {
 }
 
 export default function ClientChatPage() {
+  const { t, lang, setLang } = useI18n();
   const router = useRouter();
   const [text, setText] = useState("");
   const [requestId, setRequestId] = useState<string | null>(null);
@@ -139,7 +141,22 @@ export default function ClientChatPage() {
   useEffect(() => {
     void loadWebApp().then((WebApp) => {
       WebApp.BackButton.hide();
+      WebApp.MainButton.setText(t("send"));
+      WebApp.MainButton.setParams({
+        is_active: false,
+        is_visible: true,
+        color: WebApp.themeParams.button_color || "#22d3ee",
+        text_color: WebApp.themeParams.button_text_color || "#ffffff",
+      });
+      WebApp.MainButton.onClick(send);
     });
+    return () => {
+      void loadWebApp().then((WebApp) => {
+        WebApp.MainButton.offClick(send);
+        WebApp.MainButton.hide();
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -214,7 +231,10 @@ export default function ClientChatPage() {
   const onPickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = "";
-    if (f) void uploadImageFile(f);
+    if (f) {
+      haptic.impact("light");
+      void uploadImageFile(f);
+    }
   };
 
   const send = async () => {
@@ -247,6 +267,26 @@ export default function ClientChatPage() {
     }
   };
 
+  // Sync MainButton state with input/loading
+  useEffect(() => {
+    void loadWebApp().then((WebApp) => {
+      const isDisabled = loading || hydrating || (!text.trim() && !pendingImagePath);
+      if (isDisabled) {
+        WebApp.MainButton.disable();
+        WebApp.MainButton.setParams({ is_active: false });
+      } else {
+        WebApp.MainButton.enable();
+        WebApp.MainButton.setParams({ is_active: true });
+      }
+      
+      if (loading) {
+        WebApp.MainButton.showProgress();
+      } else {
+        WebApp.MainButton.hideProgress();
+      }
+    });
+  }, [loading, hydrating, text, pendingImagePath]);
+
   const pickWorker = async (workerId: string) => {
     if (!requestId || orderingWorkerId) return;
     setOrderingWorkerId(workerId);
@@ -267,15 +307,21 @@ export default function ClientChatPage() {
   return (
     <div className="min-h-dvh flex flex-col px-4 pt-4">
       <TwaShell />
-      <header className="mb-3">
-        <h1 className="text-lg font-bold gradient-text">Dispetcher</h1>
-        <p className="text-xs text-white/50">
-          Ishingizni yozing — mos ustalar ro‘yxati shu yerda paydo bo‘ladi. Suhbat saqlanadi.
-        </p>
+      <header className="mb-3 flex justify-between items-start">
+        <div>
+          <h1 className="text-lg font-bold gradient-text">{t("chat_header")}</h1>
+          <p className="text-xs text-white/50">{t("chat_hint")}</p>
+        </div>
+        <button
+          onClick={() => setLang(lang === "uz" ? "ru" : "uz")}
+          className="text-[10px] px-2 py-1 rounded-lg bg-white/5 border border-white/10 uppercase"
+        >
+          {lang === "uz" ? "O'zb" : "Рус"}
+        </button>
       </header>
 
       <div className="flex-1 overflow-y-auto no-scrollbar space-y-3 pb-4">
-        {hydrating && <p className="text-xs text-white/40">Suhbat yuklanmoqda…</p>}
+        {hydrating && <p className="text-xs text-white/40">{t("booting")}</p>}
         <AnimatePresence>
           {thread.map((m, i) =>
             m.role === "user" ? (
@@ -323,12 +369,9 @@ export default function ClientChatPage() {
             className="space-y-2"
           >
             <p className="text-xs font-semibold text-white/70">Mos ustalar</p>
-            {matchLoading && <p className="text-xs text-white/45">Qidirilmoqda…</p>}
+            {matchLoading && <p className="text-xs text-white/45">{t("matching")}</p>}
             {!matchLoading && matchWorkers.length === 0 && (
-              <p className="text-xs text-white/45">
-                Hozircha mos usta topilmadi. Keyinroq qayta urinib ko‘ring yoki boshqa joyda
-                qidiring.
-              </p>
+              <p className="text-xs text-white/45">{t("no_matches")}</p>
             )}
             {!matchLoading &&
               matchWorkers.map((w) => (
@@ -377,14 +420,14 @@ export default function ClientChatPage() {
                     onClick={() => void pickWorker(w.user_id)}
                   >
                     {orderingWorkerId === w.user_id
-                      ? "Buyurtma yaratilmoqda…"
-                      : "Tanlash"}
+                      ? t("loading")
+                      : t("pick")}
                   </PrimaryButton>
                   <Link
                     href={`/client/worker/${w.user_id}?requestId=${encodeURIComponent(requestId)}`}
                     className="block text-center text-[11px] text-cyan-300/90 underline"
                   >
-                    Portfolio (izohlar bilan)
+                    {t("portfolio")} (izohlar bilan)
                   </Link>
                 </GlassCard>
               ))}
@@ -416,25 +459,28 @@ export default function ClientChatPage() {
         <div className="flex gap-2">
           <button
             type="button"
-            className="rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-xs shrink-0"
-            onClick={() => fileImgRef.current?.click()}
+            className="rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-xs shrink-0 active:scale-95 transition-transform"
+            onClick={() => {
+              haptic.impact("medium");
+              fileImgRef.current?.click();
+            }}
           >
-            Rasm
+            {t("image")}
           </button>
         </div>
         <textarea
           className="w-full min-h-[88px] rounded-xl bg-black/35 border border-white/10 px-3 py-2 text-sm outline-none focus:border-cyan-400/40 resize-none"
           placeholder="Masalan: Elektrik kerak, rozetka ta’mirlash…"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            if (e.target.value.length % 10 === 0) haptic.selection();
+          }}
         />
-        <PrimaryButton
-          className="w-full"
-          disabled={loading || hydrating || (!text.trim() && !pendingImagePath)}
-          onClick={send}
-        >
-          {loading ? "Kutilmoqda…" : "Yuborish"}
-        </PrimaryButton>
+        {/* MainButton replaces this, keeping it for non-TWA environments if any, but in production TWA handles it */}
+        <p className="text-[10px] text-white/40 text-center pb-1">
+          {t("send")}
+        </p>
       </GlassCard>
     </div>
   );
