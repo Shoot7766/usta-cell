@@ -258,12 +258,32 @@ function extractFromHtml(html: string, sourceUrl: string): ScrapedAd[] {
   return results;
 }
 
+/** OLX.uz worker service category URLs to scrape for bulk import */
+export const OLX_WORKER_CATEGORIES = [
+  { url: "https://www.olx.uz/uslugi/remont-i-stroitelstvo/", label: "Ta'mir va qurilish" },
+  { url: "https://www.olx.uz/uslugi/bytovye-uslugi/",       label: "Maishiy xizmatlar" },
+  { url: "https://www.olx.uz/uslugi/krasota-zdorove/",      label: "Go'zallik va salomatlik" },
+  { url: "https://www.olx.uz/uslugi/",                      label: "Barcha xizmatlar" },
+];
+
+/**
+ * Build an OLX URL with a date filter (last N days).
+ * OLX uses search[filter_float_created_at:from]=UNIX_TIMESTAMP
+ */
+export function olxUrlWithDateFilter(baseUrl: string, days: number): string {
+  const from = Math.floor((Date.now() - days * 24 * 60 * 60 * 1000) / 1000);
+  const sep = baseUrl.includes("?") ? "&" : "?";
+  return `${baseUrl}${sep}search%5Bfilter_float_created_at%3Afrom%5D=${from}&search%5Border%5D=created_at%3Adesc`;
+}
+
 /**
  * Main entry point. Scrapes a single OLX.uz listing page URL.
  * Returns up to 50 ads.
+ * @param daysFilter - if provided, adds a created_at filter for last N days
  */
-export async function scrapeOlxPage(url: string): Promise<ScrapedAd[]> {
-  const html = await fetchHtml(url);
+export async function scrapeOlxPage(url: string, daysFilter?: number): Promise<ScrapedAd[]> {
+  const fetchUrl = daysFilter ? olxUrlWithDateFilter(url, daysFilter) : url;
+  const html = await fetchHtml(fetchUrl);
 
   const fromNext = extractFromNextData(html, url);
   if (fromNext && fromNext.length > 0) return fromNext.slice(0, 50);

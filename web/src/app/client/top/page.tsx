@@ -30,6 +30,7 @@ const BADGE_LABEL: Record<string, string> = {
   top_worker: "⭐ Top",
   pro:        "💎 Pro",
   experienced:"🔨 Tajribali",
+  external:   "🌐 OLX",
 };
 
 const RANK_COLORS = [

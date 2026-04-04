@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   const { data: profiles } = await sb
     .from("worker_profiles")
     .select(
-      "user_id, services, city_name, bio, rating_avg, rating_count, is_available, price_min_cents, price_max_cents, subscription_tier, portfolio"
+      "user_id, services, city_name, bio, rating_avg, rating_count, is_available, price_min_cents, price_max_cents, subscription_tier, portfolio, source"
     );
 
   if (!profiles?.length) return NextResponse.json({ workers: [] });
@@ -96,6 +96,8 @@ export async function GET(req: NextRequest) {
     if (ratingAvg >= 4.8 && ratingCount >= 5) badges.push("top_worker");
     if (p.subscription_tier === "pro") badges.push("pro");
     if (completedOrders >= 10) badges.push("experienced");
+    const src = (p as Record<string, unknown>)["source"];
+    if (src && src !== "app") badges.push("external");
 
     const displayName = nameMap.get(uid) ?? null;
 

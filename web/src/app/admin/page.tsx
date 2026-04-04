@@ -80,6 +80,13 @@ export default function AdminPage() {
   const [notifyBusy, setNotifyBusy]       = useState(false);
   const [notifyResult, setNotifyResult]   = useState<{ ok: boolean; found: boolean; notified: boolean; reason?: string | null; displayName?: string | null } | null>(null);
 
+  /* bulk OLX import */
+  type BulkCatResult = { label: string; url: string; scraped: number; imported: number; results: { title: string; type: string; created: boolean; error?: string }[] };
+  type BulkResult = { days: number; totalScraped: number; totalImported: number; categories: BulkCatResult[] };
+  const [bulkBusy, setBulkBusy]     = useState(false);
+  const [bulkDays, setBulkDays]     = useState(7);
+  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
+
   /* scrape */
   const [scrapeBusy, setScrapeBusy]   = useState<string | null>(null);
   type ScrapeResult = { scraped: number; imported: number; results: { title: string; url: string; type: string; created: boolean; phone: string | null; error?: string }[] };
@@ -205,6 +212,17 @@ export default function AdminPage() {
     if (r.data?.result) setImportResult(r.data.result);
     else if (!r.ok) setImportResult({ type: "error", id: null, created: false, notified: false, phone: null, summary: r.error ?? "Noma'lum xato" });
   };
+  const runBulkImport = async () => {
+    setBulkBusy(true);
+    setBulkResult(null);
+    const r = await apiJson<BulkResult>("/api/admin/bulk-import-olx", {
+      method: "POST",
+      body: JSON.stringify({ days: bulkDays }),
+    });
+    setBulkBusy(false);
+    if (r.data) setBulkResult(r.data);
+  };
+
   const runNotify = async () => {
     if (!notifyPhone.trim()) return;
     setNotifyBusy(true);
@@ -453,6 +471,53 @@ export default function AdminPage() {
                 {importResult.phone && <p className="text-xs text-white/50">📱 {importResult.phone}</p>}
                 {importResult.type === "irrelevant" && <p className="text-xs text-white/40">Tegishli emas (irrelevant) — saqlanmadi</p>}
                 {importResult.type === "error" && <p className="text-xs text-red-300/70">Migratsiyalar Supabase&apos;ga apply qilinganmi? SQL Editor&apos;da tekshiring.</p>}
+              </GlassCard>
+            )}
+          </section>
+
+          <section>
+            <h2 className="text-base font-bold gradient-text mb-3">🛒 Haftalik OLX import</h2>
+            <GlassCard className="p-4 space-y-3">
+              <p className="text-xs text-white/50">OLX.uz xizmat kategoriyalarini avtomatik scrape qilib, so&apos;nggi N kun ichidagi usta e&apos;lonlarini profilga aylantiradi.</p>
+              <div className="flex items-center gap-3">
+                <label className="text-xs text-white/50 shrink-0">Oxirgi (kun):</label>
+                <select
+                  className="rounded-xl bg-black/30 border border-white/10 px-2 py-2 text-sm text-white"
+                  value={bulkDays}
+                  onChange={(e) => setBulkDays(Number(e.target.value))}
+                >
+                  <option value={3}>3 kun</option>
+                  <option value={7}>7 kun</option>
+                  <option value={14}>14 kun</option>
+                  <option value={30}>30 kun</option>
+                </select>
+              </div>
+              <PrimaryButton disabled={bulkBusy} onClick={() => void runBulkImport()}>
+                {bulkBusy ? "OLX scrape qilinmoqda… (1-2 daq)" : "🤖 Usta profillarini import qil"}
+              </PrimaryButton>
+            </GlassCard>
+
+            {bulkResult && (
+              <GlassCard className="mt-3 p-4 space-y-2 border border-fuchsia-400/15">
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-white/60">Scraped:</span>
+                  <strong className="text-white">{bulkResult.totalScraped}</strong>
+                  <span className="text-white/60">Imported:</span>
+                  <strong className="text-emerald-300">{bulkResult.totalImported}</strong>
+                  <span className="text-white/40 text-xs">({bulkResult.days} kun)</span>
+                </div>
+                {bulkResult.categories.map((cat, ci) => (
+                  <div key={ci} className="border-t border-white/5 pt-2 space-y-1">
+                    <p className="text-xs font-semibold text-fuchsia-300/80">{cat.label} — {cat.scraped} ta e&apos;lon, {cat.imported} ta usta</p>
+                    {cat.results.filter((r) => r.type === "worker_offer").slice(0, 3).map((r, ri) => (
+                      <p key={ri} className="text-xs text-white/60 truncate">🔨 {r.title}</p>
+                    ))}
+                    {cat.results.filter((r) => r.type === "error").slice(0, 2).map((r, ri) => (
+                      <p key={ri} className="text-xs text-red-300/70 truncate">❌ {r.error}</p>
+                    ))}
+                  </div>
+                ))}
+                <p className="text-[11px] text-white/35 pt-1">Yaratilgan ustalar leaderboardda &apos;🌐 OLX&apos; badge bilan ko&apos;rinadi.</p>
               </GlassCard>
             )}
           </section>
