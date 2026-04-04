@@ -7,7 +7,8 @@ import { PhoneGateRedirect } from "@/components/auth/PhoneGateRedirect";
 import { AdminTelegramFab } from "@/components/support/AdminTelegramFab";
 
 const tabs = [
-  { href: "/client/chat", label: "AI" },
+  { href: "/client/chat",   label: "AI" },
+  { href: "/client/top",    label: "🏆 Top" },
   { href: "/client/orders", label: "Buyurtmalar" },
   { href: "/client/profile", label: "Profil" },
 ];
