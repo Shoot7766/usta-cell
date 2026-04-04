@@ -41,17 +41,31 @@ Faqat JSON qaytaring:
 {"type":"...","phone":"...","name":"...","category":"...","services":[...],"city":"...","price_min_cents":null,"price_max_cents":null,"summary":"...","tags":[...],"urgency":"medium"}`;
 
 export function normalizeUzbekPhone(raw: string): string | null {
-  const digits = raw.replace(/[\s\-\(\)\+]/g, "");
+  const digits = raw.replace(/[\s\-\(\)\.\+]/g, "");
   if (/^998\d{9}$/.test(digits)) return `+${digits}`;
-  if (/^9\d{8}$/.test(digits)) return `+998${digits}`;
+  if (/^0998\d{9}$/.test(digits)) return `+${digits.slice(1)}`;
+  if (/^9[0-9]{8}$/.test(digits)) return `+998${digits}`;
+  if (/^0[0-9]{9}$/.test(digits)) return `+998${digits.slice(1)}`;
   return null;
 }
 
 function extractPhoneFromText(text: string): string | null {
-  const m = text.match(/\+?998[\s\-]?\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}/);
-  if (m) return normalizeUzbekPhone(m[0]);
-  const m2 = text.match(/\b9\d{8}\b/);
-  if (m2) return normalizeUzbekPhone(m2[0]);
+  // +998 XX XXX XX XX or 998XXXXXXXXX
+  const m1 = text.match(/\+?998[\s\-\.]?\(?\d{2}\)?[\s\-\.]?\d{3}[\s\-\.]?\d{2}[\s\-\.]?\d{2}/);
+  if (m1) { const n = normalizeUzbekPhone(m1[0]); if (n) return n; }
+
+  // OLX style: 90 123 45 67  or  (90) 123-45-67  or  90-123-45-67
+  const m2 = text.match(/\b(9[0-9])[ \-\.\(\)]*\d{3}[ \-\.]?\d{2}[ \-\.]?\d{2}\b/);
+  if (m2) { const n = normalizeUzbekPhone(m2[0]); if (n) return n; }
+
+  // Bare 9-digit starting with 9
+  const m3 = text.match(/\b9\d{8}\b/);
+  if (m3) { const n = normalizeUzbekPhone(m3[0]); if (n) return n; }
+
+  // 0XX-style (leading zero)
+  const m4 = text.match(/\b0[0-9]{9}\b/);
+  if (m4) { const n = normalizeUzbekPhone(m4[0]); if (n) return n; }
+
   return null;
 }
 

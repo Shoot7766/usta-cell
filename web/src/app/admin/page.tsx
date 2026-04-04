@@ -183,7 +183,8 @@ export default function AdminPage() {
       }),
     });
     setImportBusy(false);
-    if (r.ok && r.data?.result) setImportResult(r.data.result);
+    if (r.data?.result) setImportResult(r.data.result);
+    else if (!r.ok) setImportResult({ type: "error", id: null, created: false, notified: false, phone: null, summary: r.error ?? "Noma'lum xato" });
   };
   const runNotify = async () => {
     if (!notifyPhone.trim()) return;
@@ -398,10 +399,10 @@ export default function AdminPage() {
             </GlassCard>
 
             {importResult && (
-              <GlassCard className={`mt-3 p-4 space-y-1.5 border ${importResult.type === "worker_offer" ? "border-fuchsia-400/25" : importResult.type === "client_request" ? "border-cyan-400/25" : "border-white/10"}`}>
+              <GlassCard className={`mt-3 p-4 space-y-1.5 border ${importResult.type === "worker_offer" ? "border-fuchsia-400/25" : importResult.type === "client_request" ? "border-cyan-400/25" : importResult.type === "error" ? "border-red-400/30" : "border-white/10"}`}>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${importResult.type === "worker_offer" ? "bg-fuchsia-500/20 text-fuchsia-200" : importResult.type === "client_request" ? "bg-cyan-500/20 text-cyan-200" : "bg-white/5 text-white/40"}`}>
-                    {importResult.type === "worker_offer" ? "Usta" : importResult.type === "client_request" ? "Mijoz" : importResult.type}
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${importResult.type === "worker_offer" ? "bg-fuchsia-500/20 text-fuchsia-200" : importResult.type === "client_request" ? "bg-cyan-500/20 text-cyan-200" : importResult.type === "error" ? "bg-red-500/20 text-red-200" : "bg-white/5 text-white/40"}`}>
+                    {importResult.type === "worker_offer" ? "Usta" : importResult.type === "client_request" ? "Mijoz" : importResult.type === "error" ? "❌ Xato" : importResult.type}
                   </span>
                   {importResult.created && <span className="text-xs text-emerald-300">✓ Yaratildi</span>}
                   {importResult.notified && <span className="text-xs text-blue-300">✓ Xabardor</span>}
@@ -409,6 +410,7 @@ export default function AdminPage() {
                 <p className="text-sm text-white/80">{importResult.summary || "—"}</p>
                 {importResult.phone && <p className="text-xs text-white/50">📱 {importResult.phone}</p>}
                 {importResult.type === "irrelevant" && <p className="text-xs text-white/40">Tegishli emas (irrelevant) — saqlanmadi</p>}
+                {importResult.type === "error" && <p className="text-xs text-red-300/70">Migratsiyalar Supabase&apos;ga apply qilinganmi? SQL Editor&apos;da tekshiring.</p>}
               </GlassCard>
             )}
           </section>

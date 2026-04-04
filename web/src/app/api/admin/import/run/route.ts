@@ -39,5 +39,8 @@ export async function POST(req: NextRequest) {
     rawPayload: body,
   });
 
+  if (result.type === "error") {
+    return NextResponse.json({ ok: false, result, error: result.summary || "Import xatosi" }, { status: 500 });
+  }
   return NextResponse.json({ ok: true, result });
 }

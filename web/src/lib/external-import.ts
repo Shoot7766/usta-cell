@@ -260,7 +260,6 @@ async function importExternalWorker(
       input.rawPayload && typeof input.rawPayload === "object"
         ? input.rawPayload
         : {},
-    updated_at: new Date().toISOString(),
   };
 
   if (existingProfile?.user_id) {
@@ -301,17 +300,19 @@ async function importExternalWorker(
 
   if (existingProfileForUser?.user_id) {
     // Update their existing profile with external metadata
-    await sb
+    const { error: upErr } = await sb
       .from("worker_profiles")
       .update(profilePatch)
       .eq("user_id", userId);
+    if (upErr) throw new Error(`worker_profiles update: ${upErr.message}`);
   } else {
     // Insert new worker_profile
-    await sb.from("worker_profiles").insert({
+    const { error: insErr } = await sb.from("worker_profiles").insert({
       user_id: userId,
       ...profilePatch,
       is_available: true,
     });
+    if (insErr) throw new Error(`worker_profiles insert: ${insErr.message}`);
   }
 
   // Notify if real user exists with this phone
@@ -399,7 +400,6 @@ async function importExternalClient(
       input.rawPayload && typeof input.rawPayload === "object"
         ? input.rawPayload
         : {},
-    updated_at: new Date().toISOString(),
   };
 
   if (existingReq?.id) {
@@ -431,14 +431,14 @@ async function importExternalClient(
       .lt("telegram_id", 0); // only synthetic users
   }
 
-  const { data: inserted, error } = await sb
+  const { data: inserted, error: reqInsErr } = await sb
     .from("requests")
     .insert({ client_id: clientId, created_at: new Date().toISOString(), ...requestPatch })
     .select("id")
     .single();
 
-  if (error || !inserted?.id) {
-    throw new Error(`Tashqi so'rov saqlanmadi: ${error?.message ?? "unknown"}`);
+  if (reqInsErr || !inserted?.id) {
+    throw new Error(`Tashqi so'rov saqlanmadi: ${reqInsErr?.message ?? "unknown"}`);
   }
 
   // Notify if real user with this phone is already in our system
@@ -499,8 +499,10 @@ export async function importFromExternal(
       return await importExternalWorker(input, classified);
     }
     return await importExternalClient(input, classified);
-  } catch {
-    return { type: "error", id: null, created: false, notified: false, phone: null, summary: "" };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[external-import] import failed:", msg);
+    return { type: "error", id: null, created: false, notified: false, phone: null, summary: msg };
   }
 }
 
