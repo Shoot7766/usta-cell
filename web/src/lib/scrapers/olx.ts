@@ -35,9 +35,10 @@ const FETCH_HEADERS = {
 async function fetchHtml(url: string): Promise<string> {
   const res = await fetch(url, {
     headers: FETCH_HEADERS,
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(20_000),
   });
-  if (!res.ok) throw new Error(`OLX fetch failed: ${res.status} ${url}`);
+  if (res.status === 404) throw new Error(`OLX 404: sahifa topilmadi — URL noto'g'ri: ${url}`);
+  if (!res.ok) throw new Error(`OLX fetch xatosi: ${res.status} ${url}`);
   return res.text();
 }
 
@@ -258,12 +259,19 @@ function extractFromHtml(html: string, sourceUrl: string): ScrapedAd[] {
   return results;
 }
 
-/** OLX.uz worker service category URLs to scrape for bulk import */
+/**
+ * OLX.uz search-based URLs for worker ads.
+ * Format: https://www.olx.uz/q-SEARCH_TERM/
+ * This is the universal OLX search URL format that works regardless of category structure.
+ */
 export const OLX_WORKER_CATEGORIES = [
-  { url: "https://www.olx.uz/uslugi/remont-i-stroitelstvo/", label: "Ta'mir va qurilish" },
-  { url: "https://www.olx.uz/uslugi/bytovye-uslugi/",       label: "Maishiy xizmatlar" },
-  { url: "https://www.olx.uz/uslugi/krasota-zdorove/",      label: "Go'zallik va salomatlik" },
-  { url: "https://www.olx.uz/uslugi/",                      label: "Barcha xizmatlar" },
+  { url: "https://www.olx.uz/q-usta/",          label: "Usta (umumiy)" },
+  { url: "https://www.olx.uz/q-santexnik/",     label: "Santexnik" },
+  { url: "https://www.olx.uz/q-elektrik/",      label: "Elektrik" },
+  { url: "https://www.olx.uz/q-remont/",        label: "Ta'mir" },
+  { url: "https://www.olx.uz/q-duradgor/",      label: "Duradgor" },
+  { url: "https://www.olx.uz/q-suvoqchi/",      label: "Suvoqchi" },
+  { url: "https://www.olx.uz/q-konditsioner/",  label: "Konditsioner" },
 ];
 
 /**
