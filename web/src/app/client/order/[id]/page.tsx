@@ -8,7 +8,6 @@ import { apiJson } from "@/lib/api-client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { PrimaryButton } from "@/components/ui/PrimaryButton";
 import { TwaShell } from "@/components/telegram/TwaShell";
-import { motion } from "framer-motion";
 import { hapticSuccess } from "@/lib/haptic";
 import { getBestEffortLatLng } from "@/lib/geo";
 import { FALLBACK_REGION_LAT, FALLBACK_REGION_LNG } from "@/lib/worker-defaults";
@@ -22,14 +21,6 @@ const MiniMapPicker = dynamic(
     ),
   }
 );
-
-const steps = [
-  { key: "pending_worker", label: "Band qilindi" },
-  { key: "new", label: "Yangi" },
-  { key: "accepted", label: "Qabul qilindi" },
-  { key: "in_progress", label: "Ishlanmoqda" },
-  { key: "completed", label: "Yakunlandi" },
-];
 
 const holatUz: Record<string, string> = {
   pending_worker: "Usta so‘rovingizni band qildi — u tasdiqlaydi",
@@ -209,29 +200,12 @@ export default function ClientOrderPage() {
     load();
   };
 
-  const idxRaw = steps.findIndex((s) => s.key === status);
-  const idx = idxRaw >= 0 ? idxRaw : 0;
-
   return (
     <div className="min-h-dvh px-4 pt-4 pb-28">
       <TwaShell />
       <h1 className="text-lg font-bold gradient-text mb-1">Buyurtma</h1>
       <GlassCard className="p-4 mb-4">
-        <div className="flex justify-between gap-1">
-          {steps.map((s, i) => (
-            <div key={s.key} className="flex-1 text-center">
-              <motion.div
-                className={`mx-auto h-2 rounded-full mb-1 ${
-                  i <= idx ? "bg-gradient-to-r from-cyan-400 to-fuchsia-500" : "bg-white/10"
-                }`}
-                initial={false}
-                animate={{ opacity: 1 }}
-              />
-              <p className="text-[9px] text-white/50 leading-tight">{s.label}</p>
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-white/45 mt-3">
+        <p className="text-xs text-white/45">
           Holat: {holatUz[status] ?? status}
         </p>
         {requestSummary.trim() && (

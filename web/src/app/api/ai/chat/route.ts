@@ -82,12 +82,9 @@ export async function POST(req: NextRequest) {
     lastUserPlainText: text || (imagePath ? "" : userLine),
     imageUrl: dataUrl,
   });
-  const assistantLine = [
-    ai.summary,
-    ai.questions.length ? `Savollar: ${ai.questions.join(" | ")}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const assistantLine =
+    (ai.assistant_message?.trim() || ai.summary?.trim() || "").trim() ||
+    (ai.questions.length ? ai.questions.join("\n\n") : "Davom eting.");
   conversation.push({ role: "assistant", content: assistantLine });
   const structured = {
     category: ai.category,
@@ -119,6 +116,7 @@ export async function POST(req: NextRequest) {
     usedOpenAi: ai.usedOpenAi,
     readyToMatch,
     ai: {
+      assistant_message: ai.assistant_message ?? assistantLine,
       category: ai.category,
       urgency: ai.urgency,
       questions: ai.questions,

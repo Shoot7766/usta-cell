@@ -31,6 +31,7 @@ type AiRes = {
   usedOpenAi: boolean;
   readyToMatch?: boolean;
   ai: {
+    assistant_message?: string;
     category: string;
     urgency: string;
     questions: string[];
@@ -68,6 +69,7 @@ function draftToAi(d: DraftRequest): AiRes["ai"] | null {
   };
   if (!String(d.summary ?? "").trim() && !String(d.category ?? "").trim()) return null;
   return {
+    assistant_message: undefined,
     category: d.category || "Xizmat",
     urgency: (d.urgency as string) || st.urgency || "medium",
     questions: Array.isArray(st.questions) ? st.questions : [],
@@ -275,11 +277,10 @@ export default function ClientChatPage() {
       <div className="flex-1 overflow-y-auto no-scrollbar space-y-3 pb-4">
         {hydrating && <p className="text-xs text-white/40">Suhbat yuklanmoqda…</p>}
         <AnimatePresence>
-          {thread
-            .filter((m) => m.role === "user")
-            .map((m, i) => (
+          {thread.map((m, i) =>
+            m.role === "user" ? (
               <motion.div
-                key={`${i}-${m.content.slice(0, 32)}`}
+                key={`u-${i}-${m.content.slice(0, 24)}`}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="flex justify-end"
@@ -288,38 +289,31 @@ export default function ClientChatPage() {
                   <p className="whitespace-pre-wrap break-words">{displayUserLine(m.content)}</p>
                 </div>
               </motion.div>
-            ))}
+            ) : (
+              <motion.div
+                key={`a-${i}-${m.content.slice(0, 24)}`}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex justify-start"
+              >
+                <div className="max-w-[92%] rounded-2xl px-3 py-2 text-sm bg-white/8 border border-white/12 text-white/92">
+                  <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                </div>
+              </motion.div>
+            )
+          )}
         </AnimatePresence>
-        {lastAi && (
-          <motion.div
-            key="summary-card"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <GlassCard className="p-4 space-y-2" glow>
-              <p className="text-[11px] uppercase tracking-wider text-white/40">
-                {lastAi.category} · {lastAi.urgency}
-              </p>
-              <p className="text-sm text-white/90">{lastAi.summary}</p>
-              {lastAi.questions?.length > 0 && (
-                <ul className="text-xs text-cyan-200/90 list-disc pl-4 space-y-1">
-                  {lastAi.questions.map((q) => (
-                    <li key={q}>{q}</li>
-                  ))}
-                </ul>
-              )}
-              <div className="flex flex-wrap gap-1 pt-1">
-                {lastAi.tags.map((t) => (
-                  <span
-                    key={t}
-                    className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </GlassCard>
-          </motion.div>
+        {lastAi && readyToMatch && lastAi.questions.length === 0 && lastAi.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-1">
+            {lastAi.tags.map((t) => (
+              <span
+                key={t}
+                className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/70"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
         )}
         {readyToMatch && requestId && lastAi && lastAi.questions.length === 0 && (
           <motion.div

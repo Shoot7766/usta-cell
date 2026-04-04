@@ -14,9 +14,11 @@ export const OrderStatusSchema = z.enum([
 export type OrderStatus = z.infer<typeof OrderStatusSchema>;
 
 export const AiDispatcherSchema = z.object({
+  /** Mijozga ko‘rinadigan tabiiy javob (mini ilovada suhbat). */
+  assistant_message: z.string().max(4000).optional(),
   category: z.string(),
   urgency: z.enum(["low", "medium", "high"]),
-  questions: z.array(z.string()).max(4),
+  questions: z.array(z.string()).max(6),
   summary: z.string(),
   /** Qisqa fikrlash: qanday usta kerak, nimalarga e’tibor berish. */
   reasoning: z.string().max(2000).optional(),
